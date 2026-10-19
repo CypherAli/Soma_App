@@ -1,0 +1,14 @@
+{
+  "cli": { "version": ">= 16.0.0", "appVersionSource": "local" },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "android": { "buildType": "apk" },
+      "env": { "SOMA_ALLOW_HTTP": "1" }
+    },
+    "production": {
+      "android": { "buildType": "app-bundle" },
+      "env": { "SOMA_ALLOW_HTTP": "0" }
+    }
+  }
+}
