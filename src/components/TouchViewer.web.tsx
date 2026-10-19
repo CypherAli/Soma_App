@@ -1,0 +1,52 @@
+import {
+  forwardRef,
+  memo,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from "react";
+import type { ViewerHandle, ViewerProps } from "./Viewer.types";
+import { parseViewerEvent } from "./Viewer.types";
+
+export const TouchViewer = memo(
+  forwardRef<ViewerHandle, ViewerProps>(function TouchViewer(
+    { uri, onEvent, onError },
+    ref,
+  ) {
+    const frame = useRef<HTMLIFrameElement>(null);
+    useImperativeHandle(
+      ref,
+      () => ({
+        command: (value) =>
+          frame.current?.contentWindow?.postMessage(
+            { source: "soma-app", command: value },
+            new URL(uri).origin,
+          ),
+      }),
+      [uri],
+    );
+    useEffect(() => {
+      const receive = (event: MessageEvent) => {
+        if (
+          event.origin !== new URL(uri).origin ||
+          event.source !== frame.current?.contentWindow
+        )
+          return;
+        const parsed = parseViewerEvent(event.data);
+        if (parsed) onEvent(parsed);
+      };
+      window.addEventListener("message", receive);
+      return () => window.removeEventListener("message", receive);
+    }, [uri, onEvent]);
+    return (
+      <iframe
+        ref={frame}
+        src={uri}
+        title="Mô hình giải phẫu 3D tương tác"
+        sandbox="allow-scripts allow-same-origin"
+        onError={() => onError("Không tải được trình xem 3D.")}
+        style={{ border: 0, width: "100%", height: "100%", display: "block" }}
+      />
+    );
+  }),
+);

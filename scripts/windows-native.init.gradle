@@ -1,0 +1,16 @@
+// Isolate the Windows toolchain workaround from generated native sources and
+// the user's Android SDK. Android's bundled Ninja 1.10 cannot handle long paths.
+def somaNinja = System.getenv('SOMA_NINJA_PATH')
+if (!somaNinja || !new File(somaNinja).isFile()) {
+  throw new GradleException('SOMA_NINJA_PATH must point to the verified Ninja executable.')
+}
+gradle.beforeProject { project ->
+  ['com.android.application', 'com.android.library'].each { pluginId ->
+    project.pluginManager.withPlugin(pluginId) {
+      project.extensions.getByName('android').externalNativeBuild.cmake.version = '3.31.6'
+      project.extensions.getByName('android').defaultConfig.externalNativeBuild.cmake.arguments(
+        '-DCMAKE_MAKE_PROGRAM=' + somaNinja.replace('\\', '/')
+      )
+    }
+  }
+}
