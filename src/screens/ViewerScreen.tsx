@@ -1,13 +1,15 @@
-import { useCallback, useRef, useState } from "react";
+import { DisplayControls } from "../ui/DisplayControls";
+import { Text } from "../ui/i18n";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   FlatList,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Switch,
-  Text,
   TextInput,
   useWindowDimensions,
   View,
@@ -24,6 +26,7 @@ import type {
   ViewerGroup,
   ViewerHandle,
   ViewerStructure,
+  ViewerState,
 } from "../components/Viewer.types";
 import {
   Body,
@@ -35,13 +38,13 @@ import {
   Page,
 } from "../ui/components";
 import { useTheme } from "../ui/theme";
+import { modelArt } from "../ui/art";
 
-type Panel = "structures" | "layers" | "info" | null;
+type Panel = "structures" | "layers" | "tools" | "info" | null;
 export function ViewerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { preferences } = useApp();
-  const theme = useTheme();
-  return <ViewerContent key={`${id}|${preferences.apiUrl}|${theme.dark}`} />;
+  return <ViewerContent key={`${id}|${preferences.apiUrl}`} />;
 }
 function ViewerContent() {
   const { id, mesh } = useLocalSearchParams<{ id: string; mesh?: string }>();
@@ -56,6 +59,7 @@ function ViewerContent() {
     [structures, setStructures] = useState<ViewerStructure[]>([]);
   const [groups, setGroups] = useState<ViewerGroup[]>([]),
     [selected, setSelected] = useState<ViewerStructure | null>(null);
+  const [sceneState, setSceneState] = useState<ViewerState | null>(null);
   const [hidden, setHidden] = useState<string[]>([]),
     [query, setQuery] = useState("");
   const [contentPanel, setContentPanel] =
@@ -68,8 +72,17 @@ function ViewerContent() {
     } else setPanelOpen(false);
   }
   const [handSide, setHandSide] = useState<"left" | "right" | "both">("right");
+  const [initialDark] = useState(t.dark);
+  useEffect(() => {
+    if (ready)
+      viewer.current?.command({
+        type: "appearance",
+        dark: t.dark,
+        locale: app.preferences.language ?? "vi",
+      });
+  }, [ready, t.dark, app.preferences.language]);
   const uri = model
-    ? `${app.preferences.apiUrl}${model.viewerPath}?theme=${t.dark ? "dark" : "light"}&reload=${reload}`
+    ? `${app.preferences.apiUrl || "https://offline.soma.local/api"}${model.viewerPath}?theme=${initialDark ? "dark" : "light"}&reload=${reload}`
     : "";
   const event = useCallback(
     (value: ViewerEvent) => {
@@ -78,18 +91,40 @@ function ViewerContent() {
         setError(null);
         setStructures(value.structures);
         setGroups(value.groups);
+        if (value.state) {
+          setSceneState(value.state);
+          setHidden(value.state.hiddenCategories);
+          if (value.state.side) setHandSide(value.state.side);
+        }
         if (mesh) viewer.current?.command({ type: "select", meshName: mesh });
+      } else if (value.type === "state") {
+        setSceneState(value.state);
+        setHidden(value.state.hiddenCategories);
+        if (value.state.side) setHandSide(value.state.side);
       } else if (value.type === "selected") {
         setSelected(value.structure);
         if (value.structure && id === "ban-tay") {
-          const side = /[._]l$/i.test(value.structure.meshName)
+          const side = /\bleft\b|[._]l$/i.test(
+            value.structure.english || value.structure.meshName,
+          )
             ? "left"
             : "right";
           setHandSide((previous) => (previous === "both" ? previous : side));
         }
       } else setError(value.message);
     },
-    [id, mesh],
+    [
+      id,
+      mesh,
+      setReady,
+      setError,
+      setStructures,
+      setGroups,
+      setSceneState,
+      setHidden,
+      setSelected,
+      setHandSide,
+    ],
   );
   if (!model)
     return (
@@ -137,6 +172,7 @@ function ViewerContent() {
         </Pressable>
         <View style={{ flex: 1, paddingHorizontal: 10 }}>
           <Text
+            numberOfLines={1}
             style={{
               fontSize: 10,
               letterSpacing: 1.4,
@@ -144,19 +180,24 @@ function ViewerContent() {
               marginBottom: 3,
             }}
           >
-            {SYSTEM_NAMES[model.system].toLocaleUpperCase("vi")}
+            {(SYSTEM_NAMES[model.system] ?? model.system).toLocaleUpperCase(
+              "vi",
+            )}
           </Text>
           <Text
             accessibilityRole="header"
             numberOfLines={1}
             style={{
-              fontSize: 19,
+              fontSize: 17,
+              lineHeight: 24,
               fontWeight: "600",
               color: t.ink,
               letterSpacing: -0.4,
             }}
           >
-            {model.title}
+            {app.preferences.language === "en"
+              ? model.english || model.title
+              : model.title}
           </Text>
         </View>
         <Pressable
@@ -183,6 +224,7 @@ function ViewerContent() {
             color={saved ? t.accent : t.ink}
           />
         </Pressable>
+        <DisplayControls />
       </View>
       <Notice />
       <View style={{ flex: 1, minHeight: 240, backgroundColor: t.ground }}>
@@ -195,8 +237,19 @@ function ViewerContent() {
           />
         )}
         {!ready && !error && (
-          <View pointerEvents="none" style={styles.loading}>
+          <View
+            pointerEvents="none"
+            style={[styles.loading, { backgroundColor: t.ground, gap: 14 }]}
+          >
+            <Image
+              source={modelArt(model, app.preferences.apiUrl)}
+              resizeMode="contain"
+              style={{ width: "80%", height: "55%", opacity: 0.4 }}
+            />
             <ActivityIndicator color={t.accent} />
+            <Text style={{ fontSize: 13, color: t.muted }}>
+              Đang chuẩn bị mô hình 3D…
+            </Text>
           </View>
         )}
         {id === "ban-tay" && ready && !error && (
@@ -213,34 +266,40 @@ function ViewerContent() {
                   ["left", "Tay trái"],
                   ["both", "Hai tay"],
                 ] as const
-              ).map(([side, label]) => (
-                <Pressable
-                  key={side}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: handSide === side }}
-                  onPress={() => {
-                    setHandSide(side);
-                    viewer.current?.command({ type: "side", side });
-                  }}
-                  style={{
-                    minHeight: 42,
-                    justifyContent: "center",
-                    paddingHorizontal: 17,
-                    borderRadius: 9,
-                    backgroundColor: handSide === side ? t.tint : t.paper,
-                  }}
-                >
-                  <Text
+              )
+                .filter(
+                  ([side]) =>
+                    !sceneState?.availableSides?.length ||
+                    sceneState.availableSides.includes(side),
+                )
+                .map(([side, label]) => (
+                  <Pressable
+                    key={side}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: handSide === side }}
+                    onPress={() => {
+                      setHandSide(side);
+                      viewer.current?.command({ type: "side", side });
+                    }}
                     style={{
-                      fontSize: 12,
-                      fontWeight: handSide === side ? "600" : "400",
-                      color: handSide === side ? t.accent : t.muted,
+                      minHeight: 42,
+                      justifyContent: "center",
+                      paddingHorizontal: 17,
+                      borderRadius: 9,
+                      backgroundColor: handSide === side ? t.tint : t.paper,
                     }}
                   >
-                    {label}
-                  </Text>
-                </Pressable>
-              ))}
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontWeight: handSide === side ? "600" : "400",
+                        color: handSide === side ? t.accent : t.muted,
+                      }}
+                    >
+                      {label}
+                    </Text>
+                  </Pressable>
+                ))}
             </View>
           </View>
         )}
@@ -287,6 +346,7 @@ function ViewerContent() {
                 setSelected(null);
                 setHidden([]);
                 setHandSide("right");
+                setSceneState(null);
                 setReload((value) => value + 1);
               }}
             >
@@ -316,7 +376,9 @@ function ViewerContent() {
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 16, fontWeight: "600", color: t.ink }}>
-                  {selected.label}
+                  {app.preferences.language === "en"
+                    ? selected.english || selected.label
+                    : selected.label}
                 </Text>
                 {!!selected.latin && (
                   <Text
@@ -364,6 +426,53 @@ function ViewerContent() {
             </Text>
           </View>
         )}
+        {selected && ready && !error && (
+          <View style={[styles.row, { gap: 8, paddingBottom: 12 }]}>
+            {(
+              [
+                [
+                  "isolate",
+                  sceneState?.isolate ? "Hiện xung quanh" : "Cô lập",
+                  !!sceneState?.isolate,
+                ],
+                [
+                  "hide",
+                  sceneState?.selectedHidden ? "Hiện lại" : "Ẩn",
+                  !!sceneState?.selectedHidden,
+                ],
+                [
+                  "fade",
+                  sceneState?.selectedFaded ? "Bỏ mờ" : "Làm mờ",
+                  !!sceneState?.selectedFaded,
+                ],
+              ] as const
+            ).map(([type, label, active]) => (
+              <Pressable
+                key={type}
+                accessibilityRole="button"
+                accessibilityLabel={label}
+                accessibilityState={{ selected: active }}
+                onPress={() =>
+                  viewer.current?.command({ type, enabled: !active })
+                }
+                style={[
+                  styles.action,
+                  {
+                    flex: 1,
+                    borderColor: active ? t.accent : t.rule,
+                    backgroundColor: active ? t.tint : t.paper,
+                  },
+                ]}
+              >
+                <Text
+                  style={{ color: active ? t.accent : t.ink, fontSize: 12 }}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
         <View style={[styles.row, { gap: 7 }]}>
           <Pressable
             accessibilityRole="button"
@@ -374,8 +483,25 @@ function ViewerContent() {
           >
             <Icon name="list-outline" size={17} color={t.ink} />
             <Text style={{ fontSize: 12, color: t.ink }}>
-              Cấu trúc ({structures.length})
+              {ready ? `Cấu trúc (${structures.length})` : "Cấu trúc"}
             </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Tách mô hình"
+            disabled={!ready || !!error}
+            accessibilityState={{ selected: (sceneState?.explode ?? 0) > 0 }}
+            onPress={() => setPanel("tools")}
+            style={[
+              styles.action,
+              {
+                flex: 0.9,
+                borderColor: (sceneState?.explode ?? 0) > 0 ? t.accent : t.rule,
+              },
+            ]}
+          >
+            <Icon name="expand-outline" size={17} color={t.ink} />
+            <Text style={{ fontSize: 12, color: t.ink }}>Tách</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -445,7 +571,9 @@ function ViewerContent() {
                   ? "Cấu trúc giải phẫu"
                   : contentPanel === "layers"
                     ? "Các lớp mô hình"
-                    : (selected?.label ?? model.title)}
+                    : contentPanel === "tools"
+                      ? "Tách & quan sát"
+                      : (selected?.label ?? model.title)}
               </Text>
               <Pressable
                 accessibilityRole="button"
@@ -479,7 +607,7 @@ function ViewerContent() {
                   keyboardShouldPersistTaps="handled"
                   data={structures.filter((item) =>
                     fold(
-                      `${item.label} ${item.latin} ${item.meshName}`,
+                      `${app.preferences.language === "en" ? ("english" in item && (item.english as string)) || item.label : item.label} ${item.latin} ${item.meshName}`,
                     ).includes(fold(query)),
                   )}
                   keyExtractor={(item) => item.meshName}
@@ -503,7 +631,10 @@ function ViewerContent() {
                       }}
                     >
                       <Text style={{ fontSize: 15, color: t.ink }}>
-                        {item.label}
+                        {app.preferences.language === "en"
+                          ? ("english" in item && (item.english as string)) ||
+                            item.label
+                          : item.label}
                       </Text>
                       {!!item.latin && (
                         <Text
@@ -528,7 +659,334 @@ function ViewerContent() {
                   paddingBottom: 30,
                 }}
               >
-                {contentPanel === "layers" ? (
+                {contentPanel === "tools" ? (
+                  <>
+                    <Body>
+                      Tách rời từng cấu trúc để quan sát. Chọn 0% để ghép lại
+                      đúng vị trí ban đầu.
+                    </Body>
+                    <Text
+                      style={{
+                        color: t.ink,
+                        fontWeight: "600",
+                        fontSize: 16,
+                        marginTop: 22,
+                        marginBottom: 12,
+                      }}
+                    >
+                      Mức tách · {Math.round((sceneState?.explode ?? 0) * 100)}%
+                    </Text>
+                    <View style={[styles.row, { marginBottom: 12 }]}>
+                      <Button
+                        secondary
+                        style={{ flex: 1 }}
+                        onPress={() =>
+                          viewer.current?.command({
+                            type: "explode",
+                            amount: sceneState?.explode ?? 0,
+                            scope: "all",
+                          })
+                        }
+                      >
+                        Tất cả cấu trúc
+                      </Button>
+                      <Button
+                        secondary
+                        disabled={!selected}
+                        style={{ flex: 1 }}
+                        onPress={() =>
+                          viewer.current?.command({
+                            type: "explode",
+                            amount: sceneState?.explode || 0.01,
+                            scope: "selected",
+                          })
+                        }
+                      >
+                        Chỉ cấu trúc đang chọn
+                      </Button>
+                    </View>
+                    <Body muted style={{ fontSize: 12, marginBottom: 12 }}>
+                      {sceneState?.explodeScope === "selected"
+                        ? "Đang tách cấu trúc đã chọn"
+                        : "Đang tách toàn bộ mô hình"}
+                    </Body>
+                    <View style={[styles.row, { gap: 6 }]}>
+                      {[0, 0.25, 0.5, 0.75, 1].map((amount) => (
+                        <Pressable
+                          key={amount}
+                          accessibilityRole="button"
+                          accessibilityLabel={
+                            amount === 0
+                              ? "Gộp mô hình"
+                              : `Tách ${amount * 100}%`
+                          }
+                          accessibilityState={{
+                            selected:
+                              Math.abs((sceneState?.explode ?? 0) - amount) <
+                              0.01,
+                          }}
+                          onPress={() =>
+                            viewer.current?.command({ type: "explode", amount })
+                          }
+                          style={[
+                            styles.action,
+                            {
+                              flex: 1,
+                              borderColor: t.rule,
+                              backgroundColor:
+                                Math.abs((sceneState?.explode ?? 0) - amount) <
+                                0.01
+                                  ? t.tint
+                                  : t.paper,
+                            },
+                          ]}
+                        >
+                          <Text style={{ color: t.ink, fontSize: 12 }}>
+                            {amount * 100}%
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                    <View style={[styles.row, { marginTop: 8 }]}>
+                      <Button
+                        secondary
+                        style={{ flex: 1 }}
+                        onPress={() =>
+                          viewer.current?.command({
+                            type: "explode",
+                            amount: Math.max(
+                              0,
+                              Math.round((sceneState?.explode ?? 0) * 100 - 1) /
+                                100,
+                            ),
+                          })
+                        }
+                      >
+                        − 1%
+                      </Button>
+                      <Button
+                        secondary
+                        style={{ flex: 1 }}
+                        onPress={() =>
+                          viewer.current?.command({
+                            type: "explode",
+                            amount: Math.min(
+                              1,
+                              Math.round((sceneState?.explode ?? 0) * 100 + 1) /
+                                100,
+                            ),
+                          })
+                        }
+                      >
+                        + 1%
+                      </Button>
+                    </View>
+                    <Text
+                      style={{
+                        color: t.ink,
+                        fontWeight: "600",
+                        fontSize: 16,
+                        marginTop: 26,
+                        marginBottom: 12,
+                      }}
+                    >
+                      Góc nhìn
+                    </Text>
+                    <View style={styles.viewGrid}>
+                      {(
+                        [
+                          ["front", "Trước"],
+                          ["back", "Sau"],
+                          ["side", "Bên"],
+                          ["three-quarter", "Góc chéo"],
+                          ["top", "Trên"],
+                          ["bottom", "Dưới"],
+                        ] as const
+                      ).map(([view, label]) => (
+                        <Pressable
+                          key={view}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Nhìn ${label.toLowerCase()}`}
+                          accessibilityState={{
+                            selected: sceneState?.view === view,
+                          }}
+                          onPress={() =>
+                            viewer.current?.command({ type: "view", view })
+                          }
+                          style={[
+                            styles.action,
+                            {
+                              minWidth: 64,
+                              minHeight: 44,
+                              paddingHorizontal: 6,
+                              flexBasis: "30%",
+                              flexGrow: 1,
+                              flexShrink: 0,
+                              borderColor: t.rule,
+                              backgroundColor:
+                                sceneState?.view === view ? t.tint : t.paper,
+                            },
+                          ]}
+                        >
+                          <Text
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.9}
+                            style={{
+                              color: t.ink,
+                              fontSize: 12,
+                              lineHeight: 18,
+                              textAlign: "center",
+                              flexShrink: 1,
+                            }}
+                          >
+                            {label}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                    <View
+                      style={[
+                        styles.row,
+                        { marginTop: 22, justifyContent: "space-between" },
+                      ]}
+                    >
+                      <Text style={{ color: t.ink, fontSize: 15 }}>
+                        Nhãn cấu trúc
+                      </Text>
+                      <Switch
+                        accessibilityLabel="Nhãn cấu trúc"
+                        value={sceneState?.showLabels ?? false}
+                        trackColor={{ true: t.accent, false: t.rule }}
+                        onValueChange={(enabled) =>
+                          viewer.current?.command({ type: "labels", enabled })
+                        }
+                      />
+                    </View>
+                    <View
+                      style={[
+                        styles.row,
+                        { marginTop: 15, justifyContent: "space-between" },
+                      ]}
+                    >
+                      <Text style={{ color: t.ink, fontSize: 15 }}>
+                        Mặt cắt
+                      </Text>
+                      <Switch
+                        accessibilityLabel="Bật mặt cắt"
+                        value={sceneState?.clip.enabled ?? false}
+                        trackColor={{ true: t.accent, false: t.rule }}
+                        onValueChange={(enabled) =>
+                          viewer.current?.command({ type: "clip", enabled })
+                        }
+                      />
+                    </View>
+                    {sceneState?.clip.enabled && (
+                      <>
+                        <View style={[styles.row, { marginTop: 12 }]}>
+                          {(["x", "y", "z"] as const).map((axis) => (
+                            <Pressable
+                              key={axis}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Trục ${axis.toUpperCase()}`}
+                              accessibilityState={{
+                                selected: sceneState.clip.axis === axis,
+                              }}
+                              onPress={() =>
+                                viewer.current?.command({ type: "clip", axis })
+                              }
+                              style={[
+                                styles.action,
+                                {
+                                  flex: 1,
+                                  borderColor: t.rule,
+                                  backgroundColor:
+                                    sceneState.clip.axis === axis
+                                      ? t.tint
+                                      : t.paper,
+                                },
+                              ]}
+                            >
+                              <Text style={{ color: t.ink }}>
+                                {axis.toUpperCase()}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                        <View style={[styles.row, { marginTop: 12 }]}>
+                          <Button
+                            secondary
+                            style={{ flex: 1 }}
+                            onPress={() =>
+                              viewer.current?.command({
+                                type: "clip",
+                                percent: Math.max(
+                                  0,
+                                  sceneState.clip.percent - 10,
+                                ),
+                              })
+                            }
+                          >
+                            − 10%
+                          </Button>
+                          <Text style={{ color: t.ink }}>
+                            {Math.round(sceneState.clip.percent)}%
+                          </Text>
+                          <Button
+                            secondary
+                            style={{ flex: 1 }}
+                            onPress={() =>
+                              viewer.current?.command({
+                                type: "clip",
+                                percent: Math.min(
+                                  100,
+                                  sceneState.clip.percent + 10,
+                                ),
+                              })
+                            }
+                          >
+                            + 10%
+                          </Button>
+                        </View>
+                        <Button
+                          secondary
+                          style={{ marginTop: 10 }}
+                          onPress={() =>
+                            viewer.current?.command({
+                              type: "clip",
+                              keepPositive: !sceneState.clip.keepPositive,
+                            })
+                          }
+                        >
+                          Đổi phía giữ lại
+                        </Button>
+                      </>
+                    )}
+                    {sceneState?.isolate && (
+                      <Button
+                        secondary
+                        style={{ marginTop: 18 }}
+                        onPress={() =>
+                          viewer.current?.command({
+                            type: "isolate",
+                            enabled: false,
+                          })
+                        }
+                      >
+                        Bỏ cô lập cấu trúc
+                      </Button>
+                    )}
+                    <Button
+                      secondary
+                      style={{ marginTop: 24 }}
+                      onPress={() =>
+                        viewer.current?.command({ type: "restore" })
+                      }
+                    >
+                      Khôi phục toàn bộ mô hình
+                    </Button>
+                  </>
+                ) : contentPanel === "layers" ? (
                   groups.map((item) => (
                     <View
                       key={item.key}
@@ -543,7 +1001,10 @@ function ViewerContent() {
                     >
                       <View style={{ flex: 1 }}>
                         <Text style={{ color: t.ink, fontSize: 15 }}>
-                          {item.label}
+                          {app.preferences.language === "en"
+                            ? ("english" in item && (item.english as string)) ||
+                              item.label
+                            : item.label}
                         </Text>
                         <Text
                           style={{ color: t.muted, fontSize: 12, marginTop: 3 }}
@@ -552,7 +1013,7 @@ function ViewerContent() {
                         </Text>
                       </View>
                       <Switch
-                        accessibilityLabel={`Hiển thị ${item.label}`}
+                        accessibilityLabel={`Hiển thị ${app.preferences.language === "en" ? ("english" in item && (item.english as string)) || item.label : item.label}`}
                         value={!hidden.includes(item.key)}
                         onValueChange={(visible) => {
                           setHidden((previous) =>
@@ -572,6 +1033,11 @@ function ViewerContent() {
                   ))
                 ) : (
                   <>
+                    {!!selected?.english && (
+                      <Body muted style={{ marginBottom: 12 }}>
+                        {selected.english}
+                      </Body>
+                    )}
                     {!!selected?.latin && (
                       <Text
                         style={{
@@ -590,6 +1056,54 @@ function ViewerContent() {
                           "Cấu trúc này chưa có chú giải trong thư viện Soma."
                         : model.description}
                     </Body>
+                    {selected?.landmarks?.map((landmark, index) => (
+                      <View
+                        key={`${landmark.latin}-${index}`}
+                        style={{ marginTop: 20 }}
+                      >
+                        <Text
+                          style={{
+                            color: t.ink,
+                            fontSize: 16,
+                            fontWeight: "600",
+                          }}
+                        >
+                          {landmark.label}
+                        </Text>
+                        {!!landmark.latin && (
+                          <Body muted>{landmark.latin}</Body>
+                        )}
+                        <Body style={{ marginTop: 6 }}>{landmark.note}</Body>
+                        {!!landmark.source && (
+                          <Body muted style={{ fontSize: 11, marginTop: 5 }}>
+                            Nguồn: {landmark.source}
+                          </Body>
+                        )}
+                      </View>
+                    ))}
+                    {!!selected?.sources?.length && (
+                      <View style={{ marginTop: 20 }}>
+                        <Text
+                          style={{
+                            color: t.ink,
+                            fontSize: 15,
+                            fontWeight: "600",
+                          }}
+                        >
+                          Nguồn chú giải
+                        </Text>
+                        {selected.sources.map((source, index) => (
+                          <Body
+                            key={`${source.title}-${index}`}
+                            muted
+                            style={{ fontSize: 12, marginTop: 7 }}
+                          >
+                            {source.title}
+                            {source.page ? ` · trang ${source.page}` : ""}
+                          </Body>
+                        ))}
+                      </View>
+                    )}
                     <Button style={{ marginTop: 24 }} onPress={practice}>
                       Luyện tập chủ đề này
                     </Button>
@@ -625,6 +1139,7 @@ const styles = StyleSheet.create({
     borderRadius: 13,
   },
   row: { flexDirection: "row", alignItems: "center", gap: 12 },
+  viewGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   loading: { position: "absolute", right: 20, top: 20 },
   sidePosition: {
     position: "absolute",

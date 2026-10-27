@@ -1,5 +1,6 @@
+import { Text } from "../ui/i18n";
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useApp } from "../core/AppProvider";
 import { errorMessage } from "../core/api";
@@ -72,6 +73,10 @@ export function ReviewScreen() {
     <Page refresh>
       <Kicker>Học tập</Kicker>
       <Title>Ôn tập</Title>
+      <Button secondary onPress={() => router.push("/sources")}>Đề ôn tập giải phẫu</Button>
+      <Body muted style={{ marginTop: 8, marginBottom: 16, fontSize: 12 }}>Nguồn do bạn cung cấp</Body>
+      <Button secondary onPress={() => router.push("/assistant")}>Hỏi trợ lý</Button>
+      <Heading>Luyện theo mô hình 3D</Heading>
       {!app.user ? (
         <SignInPrompt />
       ) : !app.privateReady ? (
@@ -96,14 +101,14 @@ export function ReviewScreen() {
                   : app.studyError
                     ? "Chưa tải được lịch ôn"
                     : unsupported
-                      ? "Có câu từ nguồn khác trên web"
+                      ? "Có câu từ đề nguồn"
                       : "Chưa có câu đến hạn"}
               </Text>
               <Body muted style={{ fontSize: 12, marginTop: 6 }}>
                 {due.length
                   ? "Ưu tiên ôn lại các cấu trúc cần củng cố."
                   : unsupported
-                    ? `${unsupported} câu thuộc nguồn hiện chưa có trong app. Bạn có thể ôn các câu đó trên web.`
+                    ? `${unsupported} câu thuộc đề nguồn. Chọn Đề ôn tập giải phẫu ở trên, rồi chọn Ôn các câu đến hạn.`
                     : "Bạn có thể luyện theo chủ đề bên dưới."}
               </Body>
             </View>

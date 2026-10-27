@@ -1,10 +1,11 @@
 import type { ExpoConfig, ConfigContext } from "expo/config";
+import { version } from "./package.json";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "Soma",
   slug: "soma-mobile",
-  version: "1.0.3",
+  version,
   scheme: "soma",
   orientation: "portrait",
   userInterfaceStyle: "automatic",
@@ -12,7 +13,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: { supportsTablet: true, bundleIdentifier: "vn.soma.mobile" },
   android: {
     package: "vn.soma.mobile",
-    versionCode: 4,
+    versionCode: 10,
     adaptiveIcon: {
       foregroundImage: "./assets/adaptive-icon.png",
       backgroundColor: "#18232E",
@@ -33,6 +34,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-router",
     "expo-secure-store",
     "expo-font",
+    ["expo-image-picker", { cameraPermission: false, microphonePermission: false, photosPermission: "Chọn ảnh để làm ảnh đại diện tài khoản Soma." }],
+    "expo-asset",
     "expo-web-browser",
     [
       "expo-build-properties",

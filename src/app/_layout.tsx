@@ -1,9 +1,11 @@
+import { useFonts } from "expo-font";
 import { Stack, type ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { AppProvider, useApp } from "../core/AppProvider";
 import { useTheme } from "../ui/theme";
+import { PhonePresentation } from "../ui/PhonePresentation";
 
 function Routes() {
   const { booting } = useApp();
@@ -49,6 +51,11 @@ function Routes() {
   );
 }
 export default function Layout() {
+  return <PhonePresentation><Application /></PhonePresentation>;
+}
+function Application() {
+  const [fontsLoaded, fontError] = useFonts({ SomaSans: require("../../assets/fonts/NotoSans-Regular.ttf"), SomaSansBold: require("../../assets/fonts/NotoSans-SemiBold.ttf") });
+  if (!fontsLoaded && !fontError) return <View style={{ flex: 1, justifyContent: "center" }}><ActivityIndicator /></View>;
   return (
     <SafeAreaProvider>
       <AppProvider>

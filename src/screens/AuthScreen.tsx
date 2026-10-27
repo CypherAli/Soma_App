@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, View } from "react-native";
+import { ActivityIndicator, Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useApp } from "../core/AppProvider";
 import { errorMessage } from "../core/api";
@@ -9,7 +9,7 @@ import {
   PROVIDER_NAMES,
   type Provider,
 } from "../core/oauthProtocol";
-import { startSocialLogin } from "../core/socialLogin";
+import { socialReturnUrl, startSocialLogin } from "../core/socialLogin";
 import { useTheme } from "../ui/theme";
 import {
   Body,
@@ -25,12 +25,17 @@ import {
 } from "../ui/components";
 
 export function AuthScreen() {
+  const { preferences } = useApp();
+  return <AuthForm key={preferences.apiUrl} />;
+}
+function AuthForm() {
   const app = useApp();
   const { request } = app;
   const t = useTheme();
   const params = useLocalSearchParams<{ next?: string }>();
   const [oauth, setOAuth] = useState<{
     mobileOAuth: boolean;
+    returnAllowed?: boolean;
     oauth: Partial<Record<Provider, boolean>>;
   } | null>(null);
   const [capabilityError, setCapabilityError] = useState(false);
@@ -49,10 +54,12 @@ export function AuthScreen() {
     [message, setMessage] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     void request<{
       mobileOAuth: boolean;
+      returnAllowed?: boolean;
       oauth: Partial<Record<Provider, boolean>>;
-    }>("/auth/mobile/capabilities", { auth: false })
+    }>(`/auth/mobile/capabilities?returnUrl=${encodeURIComponent(socialReturnUrl())}`, { auth: false, signal: controller.signal, timeoutMs: 6000 })
       .then((data) => {
         if (!cancelled) {
           setOAuth(data);
@@ -64,6 +71,7 @@ export function AuthScreen() {
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [request, app.preferences.apiUrl, retry]);
   async function social(provider: Provider) {
@@ -137,7 +145,10 @@ export function AuthScreen() {
     }
   }
   return (
-    <Page back="Quay lại">
+    <Page back="Quay lại" brand={false}>
+      <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: t.tint, alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
+        <Icon name="person-outline" color={t.accent} size={24} />
+      </View>
       <Kicker>Tài khoản Soma</Kicker>
       <Title>
         {mode === "forgot"
@@ -147,8 +158,7 @@ export function AuthScreen() {
             : "Đăng nhập"}
       </Title>
       <Body muted style={{ fontSize: 13, marginBottom: 18 }}>
-        Một tài khoản cho web và điện thoại. Tiếp tục lộ trình học của bạn ở bất
-        cứ đâu.
+        Lưu lộ trình, theo dõi kết quả và tiếp tục học trên mọi thiết bị.
       </Body>
       {mode !== "forgot" && (
         <Choice
@@ -235,6 +245,7 @@ export function AuthScreen() {
         </Body>
       )}
       {mode === "register" && (
+        <>
         <Pressable
           accessibilityRole="checkbox"
           accessibilityState={{ checked: terms }}
@@ -254,6 +265,11 @@ export function AuthScreen() {
             Tôi đồng ý với Điều khoản sử dụng và Chính sách bảo mật.
           </Body>
         </Pressable>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 12 }}>
+          <TextLink onPress={() => router.push("/terms")}>Đọc điều khoản sử dụng</TextLink>
+          <TextLink onPress={() => router.push("/privacy")}>Đọc chính sách bảo mật</TextLink>
+        </View>
+        </>
       )}
       <ErrorText message={error} />
       {message && <Body style={{ marginVertical: 15 }}>{message}</Body>}
@@ -296,30 +312,36 @@ export function AuthScreen() {
           </View>
           {PROVIDERS.map((provider) => {
             const available =
-              Platform.OS !== "web" &&
               oauth?.mobileOAuth === true &&
-              oauth.oauth?.[provider] === true;
+              oauth.oauth?.[provider] === true &&
+              oauth.returnAllowed !== false;
             return (
               <Pressable
                 key={provider}
                 accessibilityRole="button"
                 accessibilityLabel={`Tiếp tục với ${PROVIDER_NAMES[provider]}`}
                 accessibilityState={{
-                  disabled: !available || busy || socialBusy !== null,
+                  disabled: busy || socialBusy !== null || (!oauth && !capabilityError),
                 }}
-                disabled={!available || busy || socialBusy !== null}
-                onPress={() => void social(provider)}
+                disabled={busy || socialBusy !== null || (!oauth && !capabilityError)}
+                onPress={() => {
+                  if (available) void social(provider);
+                  else setError(capabilityError
+                    ? "Chưa kết nối được máy chủ đăng nhập. Hãy thử kết nối lại bên dưới."
+                    : !oauth ? "Đang kiểm tra kết nối. Vui lòng thử lại sau vài giây."
+                      : `Đăng nhập ${PROVIDER_NAMES[provider]} chưa được bật cho ứng dụng trên máy chủ này.`);
+                }}
                 style={({ pressed }) => ({
                   minHeight: 50,
                   paddingHorizontal: 18,
                   borderWidth: 1,
                   borderColor: t.rule,
-                  borderRadius: 8,
+                  borderRadius: 14,
                   flexDirection: "row",
                   alignItems: "center",
                   gap: 14,
                   backgroundColor: pressed ? t.ground : t.paper,
-                  opacity: available ? 1 : 0.5,
+                  opacity: busy ? 0.6 : 1,
                 })}
               >
                 {socialBusy === provider ? (
@@ -358,6 +380,7 @@ export function AuthScreen() {
           {capabilityError && (
             <TextLink
               onPress={() => {
+                setOAuth(null);
                 setCapabilityError(false);
                 setRetry(retry + 1);
               }}
@@ -365,15 +388,9 @@ export function AuthScreen() {
               Không tải được phương thức đăng nhập · Thử lại
             </TextLink>
           )}
-          {oauth && !oauth.mobileOAuth && (
+          {oauth && (!oauth.mobileOAuth || !PROVIDERS.some((provider) => oauth.oauth[provider])) && (
             <Body muted style={{ fontSize: 12 }}>
-              Đăng nhập mạng xã hội đang chờ cấu hình kết nối HTTPS trên máy
-              chủ.
-            </Body>
-          )}
-          {Platform.OS === "web" && (
-            <Body muted style={{ fontSize: 12 }}>
-              Dùng ứng dụng Android hoặc website Soma để đăng nhập mạng xã hội.
+              Đăng nhập mạng xã hội chưa sẵn sàng trên máy chủ này. Bạn vẫn có thể dùng email và mật khẩu.
             </Body>
           )}
         </View>
@@ -381,6 +398,7 @@ export function AuthScreen() {
       <TextLink onPress={() => router.replace("/(tabs)/atlas")}>
         Tiếp tục xem Atlas công khai
       </TextLink>
+      {(capabilityError || app.offline) && <TextLink onPress={() => router.push("/settings")}>Kiểm tra kết nối máy chủ</TextLink>}
     </Page>
   );
 }

@@ -1,6 +1,7 @@
+import { Text } from "../../ui/i18n";
 import { useEffect, useState, type ComponentProps } from "react";
 import { Tabs } from "expo-router";
-import { Keyboard, Pressable, Text, View } from "react-native";
+import { Keyboard, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon } from "../../ui/components";
 import { useTheme } from "../../ui/theme";
@@ -62,19 +63,19 @@ function TabBar({ state, navigation }: TabBarProps) {
               minHeight: 49,
               alignItems: "center",
               justifyContent: "center",
-              gap: 5,
+              gap: 4,
             }}
           >
-            <Icon
+            <View style={{ width: 44, height: 28, borderRadius: 0, alignItems: "center", justifyContent: "center", backgroundColor: "transparent" }}><Icon
               name={item.icon}
-              size={20}
+              size={21}
               color={focused ? t.accent : t.muted}
-            />
+            /></View>
             <Text
               style={{
                 fontSize: 10,
                 lineHeight: 14,
-                color: focused ? t.accent : t.muted,
+                color: focused ? t.ink : t.muted,
                 fontWeight: focused ? "600" : "400",
               }}
             >

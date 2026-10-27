@@ -1,5 +1,6 @@
+import { Text } from "../ui/i18n";
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { useApp } from "../core/AppProvider";
 import { errorMessage } from "../core/api";
 import { SYSTEM_NAMES } from "../core/types";

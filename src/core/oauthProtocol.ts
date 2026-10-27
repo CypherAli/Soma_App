@@ -7,15 +7,20 @@ export const PROVIDER_NAMES = {
 };
 export const OAUTH_RETURN = "soma://oauth";
 
-export function readOAuthReturn(value: string, expectedState: string) {
+export function readOAuthReturn(
+  value: string,
+  expectedState: string,
+  returnUrl = OAUTH_RETURN,
+) {
   const url = new URL(value);
+  const expected = new URL(returnUrl);
   if (
-    url.protocol !== "soma:" ||
-    url.hostname !== "oauth" ||
-    (url.pathname && url.pathname !== "/") ||
+    url.protocol !== expected.protocol ||
+    url.hostname !== expected.hostname ||
+    url.pathname.replace(/\/$/, "") !== expected.pathname.replace(/\/$/, "") ||
     url.username ||
     url.password ||
-    url.port ||
+    url.port !== expected.port ||
     url.hash ||
     url.searchParams.getAll("state").length !== 1 ||
     url.searchParams.get("state") !== expectedState
@@ -57,9 +62,13 @@ export function checkAuthorizeUrl(value: string, provider: Provider) {
 }
 
 export function authDestination(next?: string) {
-  return next === "plan"
-    ? "/plan"
-    : next === "profile"
-      ? "/(tabs)/profile"
-      : "/(tabs)/review";
+  return next === "connections"
+    ? "/connections"
+    : next === "account"
+      ? "/account"
+      : next === "plan"
+        ? "/plan"
+        : next === "profile"
+          ? "/(tabs)/profile"
+          : "/(tabs)/review";
 }

@@ -9,6 +9,27 @@
     />
     <title>Soma Atlas</title>
     <style>
+      #labels {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+      }
+      #labels button {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        pointer-events: auto;
+        border: 1px solid #91a0b2;
+        border-radius: 6px;
+        color: #14283e;
+        background: #fffffff0;
+        font: 11px system-ui;
+        padding: 4px 6px;
+        max-width: 125px;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        white-space: nowrap;
+      }
       html,
       body,
       #stage {

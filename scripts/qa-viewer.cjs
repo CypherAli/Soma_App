@@ -74,7 +74,7 @@ const assert = require("node:assert/strict");
       JSON.stringify(report, null, 2),
     );
     console.log(
-      "PASS: all five GLB models rendered, decoded Draco, and selected real structures.",
+      `PASS: all ${catalog.models.length} shared models rendered and selected real structures.`,
     );
   } finally {
     await browser.close();

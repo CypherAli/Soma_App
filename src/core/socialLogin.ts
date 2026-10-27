@@ -2,6 +2,8 @@ import { Platform } from "react-native";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import { apiRequest } from "./api";
 import {
   checkAuthorizeUrl,
@@ -18,7 +20,13 @@ type Pending = {
   state: string;
   next?: string;
   expiresAt: number;
+  returnUrl?: string;
+  ownerId?: string;
 };
+export const socialReturnUrl = () =>
+  Constants.executionEnvironment === ExecutionEnvironment.StoreClient
+    ? Linking.createURL("oauth")
+    : OAUTH_RETURN;
 const random = () =>
   Array.from(Crypto.getRandomBytes(32), (n) =>
     n.toString(16).padStart(2, "0"),
@@ -28,6 +36,14 @@ export async function startSocialLogin(
   base: string,
   provider: Provider,
   next?: string,
+  link?: {
+    ownerId: string;
+    start: (proof: {
+      challenge: string;
+      state: string;
+      returnUrl: string;
+    }) => Promise<{ url: string }>;
+  },
 ) {
   if (Platform.OS === "web")
     throw new Error(
@@ -50,23 +66,25 @@ export async function startSocialLogin(
     state,
     next,
     expiresAt: Date.now() + 600000,
+    returnUrl: socialReturnUrl(),
+    ownerId: link?.ownerId,
   };
   // Persist the proof before opening the system browser, including after process death.
   await SecureStore.setItemAsync(KEY, JSON.stringify(pending), {
     keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
   });
   try {
-    const { url } = await apiRequest<{ url: string }>(
-      base,
-      `/auth/mobile/oauth/${provider}`,
-      {
-        method: "POST",
-        body: { challenge, state },
-      },
-    );
+    const proof = { challenge, state, returnUrl: pending.returnUrl! };
+    const { url } = link
+      ? await link.start(proof)
+      : await apiRequest<{ url: string }>(
+          base,
+          `/auth/mobile/oauth/${provider}`,
+          { method: "POST", body: proof },
+        );
     const result = await WebBrowser.openAuthSessionAsync(
       checkAuthorizeUrl(url, provider),
-      OAUTH_RETURN,
+      pending.returnUrl,
     );
     if (result.type === "success") return result.url;
     // Do not clear the proof here: Android may deliver the deep link before the browser result.
@@ -80,7 +98,7 @@ export async function startSocialLogin(
 let completed: {
   url: string;
   base: string;
-  promise: Promise<{ auth: AuthResponse; next?: string }>;
+  promise: Promise<{ auth: AuthResponse; next?: string; ownerId?: string }>;
 } | null = null;
 export function finishSocialLogin(base: string, url: string) {
   if (completed?.url === url && completed.base === base)
@@ -92,13 +110,15 @@ export function finishSocialLogin(base: string, url: string) {
       throw new Error(
         "Yêu cầu đăng nhập đã hết hạn. Vui lòng bắt đầu lại trên app.",
       );
-    const code = readOAuthReturn(url, pending.state);
+    const code = readOAuthReturn(url, pending.state, pending.returnUrl);
     const auth = await apiRequest<AuthResponse>(base, "/auth/mobile/exchange", {
       method: "POST",
       body: { code, verifier: pending.verifier },
     });
+    if (pending.ownerId && auth.user.id !== pending.ownerId)
+      throw new Error("Liên kết không khớp tài khoản hiện tại.");
     await SecureStore.deleteItemAsync(KEY);
-    return { auth, next: pending.next };
+    return { auth, next: pending.next, ownerId: pending.ownerId };
   })().finally(() => {
     if (completed?.promise === promise) completed = null;
   });

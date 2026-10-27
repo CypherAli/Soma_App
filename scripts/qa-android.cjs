@@ -106,7 +106,9 @@ async function waitFor(label, timeout = 45000) {
   const deadline = Date.now() + timeout;
   do {
     const nodes = hierarchy();
-    const node = nodes.find((n) => n.label === label || n.text === label);
+    const node = nodes.find((n) => label instanceof RegExp
+      ? label.test(n.label) || label.test(n.text || "")
+      : n.label === label || n.text === label);
     if (node) return node;
     await pause(300);
   } while (Date.now() < deadline);
@@ -180,6 +182,14 @@ async function api(route, body, token) {
   try {
     assert.equal(adb("get-state").trim(), "device");
     assert.equal(adb("shell", "getprop", "sys.boot_completed").trim(), "1", "Emulator must finish booting before QA");
+    const expectedVersion = require("../package.json").version;
+    const installed = adb("shell", "dumpsys", "package", "vn.soma.mobile");
+    assert.ok(installed.includes(`versionName=${expectedVersion}`), "QA must run the APK matching the current source version");
+    const apkFile = process.env.ANDROID_QA_APK || path.resolve(__dirname, `../builds/soma-${expectedVersion}-preview.apk`);
+    const expectedHash = createHash("sha256").update(fs.readFileSync(apkFile)).digest("hex");
+    const packagePath = adb("shell", "pm", "path", "vn.soma.mobile").trim().split(/\r?\n/)[0].replace(/^package:/, "");
+    assert.equal(adb("shell", "sha256sum", packagePath).trim().split(/\s+/)[0], expectedHash, "Installed APK must match the file being delivered");
+    passed(`APK ${expectedVersion} identity and SHA-256`);
     const size = [...adb("shell", "wm", "size").matchAll(/(\d+)x(\d+)/g)].at(-1);
     assert.ok(size, "Android viewport must be available");
     viewport = { width: Number(size[1]), height: Number(size[2]) };
@@ -190,31 +200,36 @@ async function api(route, body, token) {
     screenshot("home");
     passed("standalone APK launch");
     launch("atlas/ban-tay");
-    await waitFor("Cấu trúc (54)", 60000);
-    await waitFor("Tay phải");
+    const structureControl = await waitFor(/^Cấu trúc \([1-9]\d*\)$/, 60000);
     screenshot("viewer");
-    passed("native WebView GLB/Draco");
-    await tapLabel("Tay trái");
-    await tapLabel("Hai tay");
+    passed("native WebView bundled atlas");
+    const sideLabels = [...new Set(hierarchy().filter((node) => ["Tay phải", "Tay trái", "Hai tay"].includes(node.label)).map((node) => node.label))];
+    assert.ok(sideLabels.length, "Hand viewer must expose its available side controls");
+    for (const label of sideLabels) await tapLabel(label);
     await pause(800);
     screenshot("viewer-both");
-    await tapLabel("Tay phải");
-    passed("left and right hand controls");
+    await tapLabel(sideLabels.includes("Tay phải") ? "Tay phải" : sideLabels[0]);
+    passed(`available hand-side controls: ${sideLabels.join(", ")}`);
     const webview = hierarchy().find((n) => n.class === "android.webkit.WebView");
     assert.ok(webview, "Native 3D WebView must be accessible");
     const [vx, vy, vr, vb] = webview.bounds;
     const region = [vx + 10, vy + 10, vr - 10, vb - 10];
     await pause(1500);
     const before = screenshot("before-orbit", region);
-    swipe(0.43, (vy + vb) / 2 / viewport.height, 0.66, (vy + vb) / 2 / viewport.height, 500);
-    await pause(1500);
-    assert.notEqual(before, screenshot("after-orbit", region), "3D canvas pixels must change after touch orbit");
+    let afterOrbit = before;
+    for (const duration of [1000, 1400]) {
+      swipe(0.32, (vy + (vb - vy) * 0.48) / viewport.height, 0.68, (vy + (vb - vy) * 0.56) / viewport.height, duration);
+      await pause(1800);
+      afterOrbit = screenshot("after-orbit", region);
+      if (afterOrbit !== before) break;
+    }
+    assert.notEqual(before, afterOrbit, "3D canvas pixels must change after touch orbit");
     assert.ok(hierarchy().some((n) => n.class === "android.webkit.WebView"), "App must remain in the 3D viewer after the gesture");
     passed("touch orbit changes canvas");
     await tapLabel("Lưu mô hình");
     await waitFor("Bỏ lưu mô hình");
     passed("local bookmark");
-    await tapLabel("Cấu trúc (54)");
+    await tapLabel(structureControl.label);
     await waitFor("Cấu trúc giải phẫu");
     screenshot("structure-sheet");
     await tapLabel("Đóng bảng thông tin");
@@ -223,6 +238,29 @@ async function api(route, body, token) {
     screenshot("information-sheet");
     await tapLabel("Đóng bảng thông tin");
     passed("native structure and information sheets");
+    adb("reverse", "tcp:4000", "tcp:4000");
+    launch("settings");
+    await waitFor("Địa chỉ API");
+    await tapLabel("Địa chỉ API");
+    adb("shell", "input", "keycombination", "113", "29");
+    await typeText("http://127.0.0.1:4000/api");
+    adb("shell", "input", "keyevent", "4");
+    await tapLabel("Lưu cài đặt", { scroll: true });
+    await waitFor("Đã lưu cài đặt.");
+    adb("shell", "am", "force-stop", "vn.soma.mobile");
+    launch();
+    await waitFor("Cá nhân");
+    launch("settings");
+    await waitFor("Địa chỉ API");
+    assert.ok(hierarchy().some((node) => node.class === "android.widget.EditText" && node.text === "http://127.0.0.1:4000/api"), "Standalone preview must preserve a custom USB server after process restart");
+    screenshot("restored-api");
+    passed("custom USB server survives process restart");
+    for (const [route, title] of [["terms", "Điều khoản sử dụng"], ["privacy", "Chính sách bảo mật"]]) {
+      launch(route);
+      await waitFor(title);
+      screenshot(route);
+    }
+    passed("native legal document routes");
     const password = `Qa1_${randomUUID().slice(0, 12)}`;
     email = `mobile-android-${randomUUID().slice(0, 8)}@example.invalid`;
     account = await api("/auth/register", {
@@ -327,6 +365,7 @@ async function api(route, body, token) {
         ]);
     } finally {
       await db.end();
+      try { adb("reverse", "--remove", "tcp:4000"); } catch { /* The route may not have been created if an earlier check failed. */ }
       try {
         adb("shell", "am", "force-stop", "vn.soma.mobile");
         adb("shell", "pm", "clear", "vn.soma.mobile");

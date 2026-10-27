@@ -41,6 +41,7 @@ export async function apiRequest<T>(
     body?: unknown;
     token?: string;
     signal?: AbortSignal;
+    timeoutMs?: number;
   } = {},
 ): Promise<T> {
   if (!base)
@@ -49,9 +50,10 @@ export async function apiRequest<T>(
       "Chưa cấu hình máy chủ. Mở Cá nhân → Cài đặt để nhập địa chỉ API.",
     );
   const abort = new AbortController();
-  const timeout = setTimeout(() => abort.abort(), 20000);
+  const timeout = setTimeout(() => abort.abort(), options.timeoutMs ?? 10000);
   const forwardAbort = () => abort.abort();
   options.signal?.addEventListener("abort", forwardAbort, { once: true });
+  if (options.signal?.aborted) abort.abort();
   try {
     const response = await fetch(base + path, {
       method: options.method ?? "GET",
@@ -63,12 +65,15 @@ export async function apiRequest<T>(
       body: options.body ? JSON.stringify(options.body) : undefined,
       signal: abort.signal,
     });
-    const data: unknown = await response.json().catch(() => null);
+    const data: unknown = await response.json().catch((error) => {
+      if (abort.signal.aborted) throw error;
+      return null;
+    });
     if (!response.ok) {
       const message =
         data && typeof data === "object" && "message" in data
           ? (data as { message: unknown }).message
-          : null;
+          : data && typeof data === "object" && "error" in data ? (data as { error: unknown }).error : null;
       throw new ApiError(
         response.status,
         typeof message === "string"
@@ -86,11 +91,11 @@ export async function apiRequest<T>(
     if (abort.signal.aborted)
       throw new ApiError(
         0,
-        "Kết nối quá thời gian. Kiểm tra mạng rồi thử lại.",
+        "Máy chủ chưa phản hồi. Thử kết nối lại hoặc kiểm tra máy chủ trong Cài đặt.",
       );
     throw new ApiError(
       0,
-      "Không kết nối được máy chủ. Kiểm tra Wi-Fi và địa chỉ API trong Cài đặt.",
+      "Không kết nối được máy chủ. Địa chỉ có thể đã hết hạn hoặc máy chủ đang tắt. Kiểm tra trong Cài đặt.",
     );
   } finally {
     clearTimeout(timeout);

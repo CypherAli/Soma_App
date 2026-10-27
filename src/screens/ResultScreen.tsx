@@ -1,5 +1,6 @@
+import { Text } from "../ui/i18n";
 import { useEffect, useRef, useState } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { router } from "expo-router";
 import { useApp } from "../core/AppProvider";
 import { errorMessage } from "../core/api";

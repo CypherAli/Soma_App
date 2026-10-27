@@ -1,1 +1,1 @@
-export { AccountScreen as default } from "../screens/PersonalScreens";
+export { AccountProfileScreen as default } from "../screens/AccountScreens";

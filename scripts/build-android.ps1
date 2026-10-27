@@ -31,7 +31,14 @@ if (-not $env:JAVA_HOME) {
 if (-not $env:ANDROID_HOME) { $env:ANDROID_HOME = Join-Path $env:LOCALAPPDATA 'Android/Sdk' }
 if (-not (Test-Path -LiteralPath (Join-Path $env:JAVA_HOME 'bin/java.exe'))) { throw 'JAVA_HOME does not contain java.exe.' }
 if (-not (Test-Path -LiteralPath (Join-Path $env:ANDROID_HOME 'platform-tools/adb.exe'))) { throw 'ANDROID_HOME does not contain the Android SDK.' }
-if ($Production -and -not ($env:EXPO_PUBLIC_API_URL -match '^https://')) { throw 'Production builds require EXPO_PUBLIC_API_URL with HTTPS.' }
+$apiUri = $null
+if ($env:EXPO_PUBLIC_API_URL) {
+    if (-not [Uri]::TryCreate($env:EXPO_PUBLIC_API_URL, [UriKind]::Absolute, [ref]$apiUri) -or $apiUri.Scheme -notin @('http', 'https') -or $apiUri.UserInfo -or $apiUri.Query -or $apiUri.Fragment) { throw 'EXPO_PUBLIC_API_URL must be an HTTP(S) API URL without credentials, query or fragment.' }
+}
+if ($Production) {
+    if (-not $apiUri -or $apiUri.Scheme -ne 'https') { throw 'Production builds require EXPO_PUBLIC_API_URL with HTTPS.' }
+    if ($apiUri.IsLoopback -or $apiUri.Host -match '(^API_HOST$|\.example$|\.invalid$|\.trycloudflare\.com$|\.exp\.direct$)' -or $apiUri.Host -notmatch '\.') { throw 'Production builds require a real, stable API hostname; temporary tunnels and template values are not release endpoints.' }
+}
 $env:SOMA_ALLOW_HTTP = if ($Production) { '0' } else { '1' }
 $env:CI = '1'
 $env:NODE_ENV = 'production'
@@ -84,7 +91,10 @@ try {
     $appVersion = (Get-Content -LiteralPath (Join-Path $projectRoot 'package.json') -Raw | ConvertFrom-Json).version
     $output = Join-Path $destination $(if ($Production) { "soma-$appVersion-release.apk" } else { "soma-$appVersion-preview.apk" })
     Copy-Item -LiteralPath $apk -Destination $output -Force
+    $outputHash = Get-SomaFileHash $output
+    Set-Content -LiteralPath ($output + '.sha256') -Value ($outputHash + '  ' + [System.IO.Path]::GetFileName($output)) -Encoding ascii
     Write-Output "APK: $output"
+    Write-Output "SHA-256: $outputHash"
 } finally {
     Pop-Location
 }
