@@ -34,7 +34,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-router",
     "expo-secure-store",
     "expo-font",
-    ["expo-image-picker", { cameraPermission: false, microphonePermission: false, photosPermission: "Chọn ảnh để làm ảnh đại diện tài khoản Soma." }],
+    [
+      "expo-image-picker",
+      {
+        cameraPermission: false,
+        microphonePermission: false,
+        photosPermission: "Chọn ảnh để làm ảnh đại diện tài khoản Soma.",
+      },
+    ],
     "expo-asset",
     "expo-web-browser",
     [

@@ -323,8 +323,15 @@ function SourceContent() {
                 ? "Câu nhiều đáp án · chọn tất cả đáp án đúng"
                 : "Một đáp án đúng"}
           </Heading>
-          {!!q.context && <Body muted localize={false}>{q.context}</Body>}
-          <Body localize={false} style={{ fontSize: 18, lineHeight: 29, marginVertical: 14 }}>
+          {!!q.context && (
+            <Body muted localize={false}>
+              {q.context}
+            </Body>
+          )}
+          <Body
+            localize={false}
+            style={{ fontSize: 18, lineHeight: 29, marginVertical: 14 }}
+          >
             {q.stem}
           </Body>
           {images(q.images ?? [])}

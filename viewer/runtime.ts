@@ -1,13 +1,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import {
-  CATS,
-  MAT,
-  ORGAN_ALL_SUBMATS,
-} from "../../Soma_Fe/src/lib/anatomy/layers";
+import { CATS, MAT, ORGAN_ALL_SUBMATS } from "./shared/layers";
 import { anatomicalOffsets } from "./explosion";
-import { frameAnatomyBox } from "../../Soma_Fe/src/lib/humanAtlas/cameraFraming";
-import { RoomEnvironment } from "../../Soma_Fe/src/lib/humanAtlas/roomEnvironment";
+import { frameAnatomyBox } from "./shared/cameraFraming";
+import { RoomEnvironment } from "./shared/roomEnvironment";
 import { loadAtlas, loadGlb, type LoadedPart } from "./loaders";
 import type {
   ViewerCommand,

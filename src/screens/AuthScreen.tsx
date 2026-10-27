@@ -59,7 +59,10 @@ function AuthForm() {
       mobileOAuth: boolean;
       returnAllowed?: boolean;
       oauth: Partial<Record<Provider, boolean>>;
-    }>(`/auth/mobile/capabilities?returnUrl=${encodeURIComponent(socialReturnUrl())}`, { auth: false, signal: controller.signal, timeoutMs: 6000 })
+    }>(
+      `/auth/mobile/capabilities?returnUrl=${encodeURIComponent(socialReturnUrl())}`,
+      { auth: false, signal: controller.signal, timeoutMs: 6000 },
+    )
       .then((data) => {
         if (!cancelled) {
           setOAuth(data);
@@ -146,7 +149,17 @@ function AuthForm() {
   }
   return (
     <Page back="Quay lại" brand={false}>
-      <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: t.tint, alignItems: "center", justifyContent: "center", marginBottom: 24 }}>
+      <View
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: 16,
+          backgroundColor: t.tint,
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: 24,
+        }}
+      >
         <Icon name="person-outline" color={t.accent} size={24} />
       </View>
       <Kicker>Tài khoản Soma</Kicker>
@@ -246,29 +259,35 @@ function AuthForm() {
       )}
       {mode === "register" && (
         <>
-        <Pressable
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: terms }}
-          onPress={() => setTerms(!terms)}
-          style={{
-            flexDirection: "row",
-            gap: 10,
-            alignItems: "center",
-            paddingVertical: 12,
-          }}
-        >
-          <Icon
-            name={terms ? "checkbox" : "square-outline"}
-            color={terms ? t.accent : t.muted}
-          />
-          <Body muted style={{ fontSize: 12, lineHeight: 19, flex: 1 }}>
-            Tôi đồng ý với Điều khoản sử dụng và Chính sách bảo mật.
-          </Body>
-        </Pressable>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 12 }}>
-          <TextLink onPress={() => router.push("/terms")}>Đọc điều khoản sử dụng</TextLink>
-          <TextLink onPress={() => router.push("/privacy")}>Đọc chính sách bảo mật</TextLink>
-        </View>
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: terms }}
+            onPress={() => setTerms(!terms)}
+            style={{
+              flexDirection: "row",
+              gap: 10,
+              alignItems: "center",
+              paddingVertical: 12,
+            }}
+          >
+            <Icon
+              name={terms ? "checkbox" : "square-outline"}
+              color={terms ? t.accent : t.muted}
+            />
+            <Body muted style={{ fontSize: 12, lineHeight: 19, flex: 1 }}>
+              Tôi đồng ý với Điều khoản sử dụng và Chính sách bảo mật.
+            </Body>
+          </Pressable>
+          <View
+            style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 12 }}
+          >
+            <TextLink onPress={() => router.push("/terms")}>
+              Đọc điều khoản sử dụng
+            </TextLink>
+            <TextLink onPress={() => router.push("/privacy")}>
+              Đọc chính sách bảo mật
+            </TextLink>
+          </View>
         </>
       )}
       <ErrorText message={error} />
@@ -321,15 +340,22 @@ function AuthForm() {
                 accessibilityRole="button"
                 accessibilityLabel={`Tiếp tục với ${PROVIDER_NAMES[provider]}`}
                 accessibilityState={{
-                  disabled: busy || socialBusy !== null || (!oauth && !capabilityError),
+                  disabled:
+                    busy || socialBusy !== null || (!oauth && !capabilityError),
                 }}
-                disabled={busy || socialBusy !== null || (!oauth && !capabilityError)}
+                disabled={
+                  busy || socialBusy !== null || (!oauth && !capabilityError)
+                }
                 onPress={() => {
                   if (available) void social(provider);
-                  else setError(capabilityError
-                    ? "Chưa kết nối được máy chủ đăng nhập. Hãy thử kết nối lại bên dưới."
-                    : !oauth ? "Đang kiểm tra kết nối. Vui lòng thử lại sau vài giây."
-                      : `Đăng nhập ${PROVIDER_NAMES[provider]} chưa được bật cho ứng dụng trên máy chủ này.`);
+                  else
+                    setError(
+                      capabilityError
+                        ? "Chưa kết nối được máy chủ đăng nhập. Hãy thử kết nối lại bên dưới."
+                        : !oauth
+                          ? "Đang kiểm tra kết nối. Vui lòng thử lại sau vài giây."
+                          : `Đăng nhập ${PROVIDER_NAMES[provider]} chưa được bật cho ứng dụng trên máy chủ này.`,
+                    );
                 }}
                 style={({ pressed }) => ({
                   minHeight: 50,
@@ -388,17 +414,24 @@ function AuthForm() {
               Không tải được phương thức đăng nhập · Thử lại
             </TextLink>
           )}
-          {oauth && (!oauth.mobileOAuth || !PROVIDERS.some((provider) => oauth.oauth[provider])) && (
-            <Body muted style={{ fontSize: 12 }}>
-              Đăng nhập mạng xã hội chưa sẵn sàng trên máy chủ này. Bạn vẫn có thể dùng email và mật khẩu.
-            </Body>
-          )}
+          {oauth &&
+            (!oauth.mobileOAuth ||
+              !PROVIDERS.some((provider) => oauth.oauth[provider])) && (
+              <Body muted style={{ fontSize: 12 }}>
+                Đăng nhập mạng xã hội chưa sẵn sàng trên máy chủ này. Bạn vẫn có
+                thể dùng email và mật khẩu.
+              </Body>
+            )}
         </View>
       )}
       <TextLink onPress={() => router.replace("/(tabs)/atlas")}>
         Tiếp tục xem Atlas công khai
       </TextLink>
-      {(capabilityError || app.offline) && <TextLink onPress={() => router.push("/settings")}>Kiểm tra kết nối máy chủ</TextLink>}
+      {(capabilityError || app.offline) && (
+        <TextLink onPress={() => router.push("/settings")}>
+          Kiểm tra kết nối máy chủ
+        </TextLink>
+      )}
     </Page>
   );
 }

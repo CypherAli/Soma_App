@@ -47,7 +47,10 @@ const server = createServer(async (req, res) => {
     if (path === "/api/mobile/bootstrap")
       data = JSON.stringify(await service.bootstrap());
     else if (/^\/api\/mobile\/viewer\/[a-z0-9-]+$/.test(path)) {
-      data = await service.viewer(path.split("/").at(-1), url.searchParams.get("theme") === "dark");
+      data = await service.viewer(
+        path.split("/").at(-1),
+        url.searchParams.get("theme") === "dark",
+      );
       type = "text/html";
     } else if (/^\/api\/mobile\/assets\/[^/]+$/.test(path)) {
       const asset = service.asset(path.split("/").at(-1));
@@ -167,7 +170,9 @@ const server = createServer(async (req, res) => {
         ].filter(Boolean),
       ),
     ];
-    for (const id of process.env.MOBILE_QA_UI_ONLY === "1" ? [] : representatives) {
+    for (const id of process.env.MOBILE_QA_UI_ONLY === "1"
+      ? []
+      : representatives) {
       const page = await browser.newPage({
         viewport: { width: 390, height: 480 },
         deviceScaleFactor: 3,
@@ -197,31 +202,77 @@ const server = createServer(async (req, res) => {
         `${id}: ${JSON.stringify(await page.evaluate(() => window.__events))}`,
       );
       assert.ok(ready.structures.length > 0);
-      const quality = await page.evaluate(() => window.somaMobileDebug().quality);
-      assert.equal(quality.pixelRatio, 2, `${id}: render at high density on Retina screens`);
-      assert.equal(quality.antialias, true, `${id}: hardware edge antialiasing`);
+      const quality = await page.evaluate(
+        () => window.somaMobileDebug().quality,
+      );
+      assert.equal(
+        quality.pixelRatio,
+        2,
+        `${id}: render at high density on Retina screens`,
+      );
+      assert.equal(
+        quality.antialias,
+        true,
+        `${id}: hardware edge antialiasing`,
+      );
       if (id === "ban-tay")
         assert.deepEqual(ready.state.availableSides, ["left"]);
       await page.screenshot({ path: join(output, `${id}-assembled.png`) });
-      const initialCamera = await page.evaluate(() => window.somaMobileDebug().camera);
+      const initialCamera = await page.evaluate(
+        () => window.somaMobileDebug().camera,
+      );
       // Exercise the same pointer path used by touch OrbitControls, not a rotation command.
       const touch = await page.context().newCDPSession(page);
-      await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 180, y: 230 }] });
+      await touch.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [{ x: 180, y: 230 }],
+      });
       for (let x = 190; x <= 270; x += 10)
-        await touch.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: 230 }] });
-      await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-      await page.waitForFunction((initial) => JSON.stringify(window.somaMobileDebug().camera.quaternion) !== JSON.stringify(initial), initialCamera.quaternion);
+        await touch.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: [{ x, y: 230 }],
+        });
+      await touch.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      });
+      await page.waitForFunction(
+        (initial) =>
+          JSON.stringify(window.somaMobileDebug().camera.quaternion) !==
+          JSON.stringify(initial),
+        initialCamera.quaternion,
+      );
       const distanceBeforePinch = await page.evaluate(() => {
         const { position, target } = window.somaMobileDebug().camera;
-        return Math.hypot(...position.map((value, index) => value - target[index]));
+        return Math.hypot(
+          ...position.map((value, index) => value - target[index]),
+        );
       });
-      await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 140, y: 230 }, { x: 240, y: 230 }] });
+      await touch.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [
+          { x: 140, y: 230 },
+          { x: 240, y: 230 },
+        ],
+      });
       for (let offset = 10; offset <= 40; offset += 10)
-        await touch.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: 140 - offset, y: 230 }, { x: 240 + offset, y: 230 }] });
-      await touch.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+        await touch.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: [
+            { x: 140 - offset, y: 230 },
+            { x: 240 + offset, y: 230 },
+          ],
+        });
+      await touch.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      });
       await page.waitForFunction((before) => {
         const { position, target } = window.somaMobileDebug().camera;
-        return Math.hypot(...position.map((value, index) => value - target[index])) < before * 0.99;
+        return (
+          Math.hypot(...position.map((value, index) => value - target[index])) <
+          before * 0.99
+        );
       }, distanceBeforePinch);
       await touch.detach();
       await page.screenshot({ path: join(output, `${id}-rotated.png`) });
@@ -359,30 +410,69 @@ const server = createServer(async (req, res) => {
       }, base);
       const origin = new URL(base).origin;
       await page.goto(origin);
-      await page.waitForFunction(() => document.querySelector("iframe")?.contentWindow?.somaMobileDebug?.().preview === true, null, { timeout: 60000 });
-      await page.waitForFunction(() => window.__viewerEvents.some((event) => event.type === "ready"), null, { timeout: 60000 });
-      const initialPreview = await page.evaluate(() => document.querySelector("iframe").contentWindow.somaMobileDebug());
+      await page.waitForFunction(
+        () =>
+          document.querySelector("iframe")?.contentWindow?.somaMobileDebug?.()
+            .preview === true,
+        null,
+        { timeout: 60000 },
+      );
+      await page.waitForFunction(
+        () => window.__viewerEvents.some((event) => event.type === "ready"),
+        null,
+        { timeout: 60000 },
+      );
+      const initialPreview = await page.evaluate(() =>
+        document.querySelector("iframe").contentWindow.somaMobileDebug(),
+      );
       await page.waitForFunction((initial) => {
-        const debug = document.querySelector("iframe").contentWindow.somaMobileDebug();
-        return debug.autoRotate && Math.abs(debug.camera.position[0] - initial[0]) > 0.02;
+        const debug = document
+          .querySelector("iframe")
+          .contentWindow.somaMobileDebug();
+        return (
+          debug.autoRotate &&
+          Math.abs(debug.camera.position[0] - initial[0]) > 0.02
+        );
       }, initialPreview.camera.position);
       await page.screenshot({ path: join(output, "mobile-home-3d.png") });
-      const previewFrame = page.frames().find((frame) => frame.url().includes("preview=1"));
+      const previewFrame = page
+        .frames()
+        .find((frame) => frame.url().includes("preview=1"));
       const canvasBox = await previewFrame.locator("canvas").boundingBox();
-      const beforeDrag = await previewFrame.evaluate(() => window.somaMobileDebug().camera.quaternion);
-      await page.mouse.move(canvasBox.x + canvasBox.width * 0.4, canvasBox.y + canvasBox.height * 0.5);
+      const beforeDrag = await previewFrame.evaluate(
+        () => window.somaMobileDebug().camera.quaternion,
+      );
+      await page.mouse.move(
+        canvasBox.x + canvasBox.width * 0.4,
+        canvasBox.y + canvasBox.height * 0.5,
+      );
       await page.mouse.down();
-      await page.mouse.move(canvasBox.x + canvasBox.width * 0.7, canvasBox.y + canvasBox.height * 0.5, { steps: 8 });
+      await page.mouse.move(
+        canvasBox.x + canvasBox.width * 0.7,
+        canvasBox.y + canvasBox.height * 0.5,
+        { steps: 8 },
+      );
       await page.mouse.up();
       await previewFrame.waitForFunction((before) => {
         const debug = window.somaMobileDebug();
-        return !debug.autoRotate && JSON.stringify(debug.camera.quaternion) !== JSON.stringify(before);
+        return (
+          !debug.autoRotate &&
+          JSON.stringify(debug.camera.quaternion) !== JSON.stringify(before)
+        );
       }, beforeDrag);
       await page.getByRole("button", { name: "Mở Atlas", exact: true }).click();
-      await page.waitForFunction(() => !document.querySelector('iframe[src*="preview=1"]'));
-      console.log("PASS home: centered live 3D, automatic rotation, drag rotation and preview unmounted on navigation");
+      await page.waitForFunction(
+        () => !document.querySelector('iframe[src*="preview=1"]'),
+      );
+      console.log(
+        "PASS home: centered live 3D, automatic rotation, drag rotation and preview unmounted on navigation",
+      );
       await page.goto(`${origin}/atlas/mat-cat-ngang-bung`);
-      await page.waitForFunction(() => window.__viewerEvents.some((event) => event.type === "ready"), null, { timeout: 60000 });
+      await page.waitForFunction(
+        () => window.__viewerEvents.some((event) => event.type === "ready"),
+        null,
+        { timeout: 60000 },
+      );
       await page.screenshot({ path: join(output, "mobile-abdomen.png") });
       await page.goto(`${origin}/atlas/giai-phau-tim`);
       await page.waitForFunction(
@@ -405,7 +495,7 @@ const server = createServer(async (req, res) => {
       await page
         .getByRole("button", { name: "Đóng bảng thông tin", exact: true })
         .click();
-      await page.getByRole('dialog').waitFor({ state: 'hidden' });
+      await page.getByRole("dialog").waitFor({ state: "hidden" });
       await page.screenshot({ path: join(output, "mobile-separated.png") });
       const ready = await page.evaluate(() =>
         window.__viewerEvents.find((event) => event.type === "ready"),
@@ -459,14 +549,15 @@ const server = createServer(async (req, res) => {
     }
     // A focused UI rerun keeps the geometry audit from the full run.
     const previous = existsSync(join(output, "report.json"))
-      ? JSON.parse(readFileSync(join(output, "report.json"), "utf8")) : null;
+      ? JSON.parse(readFileSync(join(output, "report.json"), "utf8"))
+      : null;
     writeFileSync(
       join(output, "report.json"),
       JSON.stringify(
         {
           models: catalogue.models.length,
           questions: catalogue.questions.length,
-          reports: reports.length ? reports : previous?.reports ?? [],
+          reports: reports.length ? reports : (previous?.reports ?? []),
           ui: process.env.MOBILE_QA_UI === "1" || previous?.ui === true,
         },
         null,

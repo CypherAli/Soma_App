@@ -136,8 +136,16 @@ console.log(
 );
 
 // Public source illustrations only; personal documents never enter the asset pack.
-await mkdir(join(root, "../soma_be/resources/mobile/source-images"), { recursive: true });
+await mkdir(join(root, "../soma_be/resources/mobile/source-images"), {
+  recursive: true,
+});
 const { readdir } = await import("node:fs/promises");
-for (const key of await readdir(join(root, "../Soma_Fe/public/kb/dr-lam/images"))) {
-  if (/^[a-f0-9]{20}\.webp$/.test(key)) await copyFile(join(root, "../Soma_Fe/public/kb/dr-lam/images", key), join(root, "../soma_be/resources/mobile/source-images", key));
+for (const key of await readdir(
+  join(root, "../Soma_Fe/public/kb/dr-lam/images"),
+)) {
+  if (/^[a-f0-9]{20}\.webp$/.test(key))
+    await copyFile(
+      join(root, "../Soma_Fe/public/kb/dr-lam/images", key),
+      join(root, "../soma_be/resources/mobile/source-images", key),
+    );
 }

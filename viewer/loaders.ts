@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
-import { MAT, pickCat, organMat } from "../../Soma_Fe/src/lib/anatomy/layers";
-import { decodeModelResponse } from "../../Soma_Fe/src/lib/humanAtlas/modelDownload";
-import type { Atlas } from "../../Soma_Fe/src/lib/humanAtlas/anatomy";
+import { MAT, pickCat, organMat } from "./shared/layers";
+import { decodeModelResponse } from "./shared/modelDownload";
+import type { Atlas } from "./shared/anatomy";
 import type { ViewerConfig } from "./contracts";
 import { resourceUrl } from "./resources";
 import type { ViewerStructure } from "../src/components/Viewer.types";
@@ -15,8 +15,7 @@ export interface LoadedPart {
   categories: string[];
 }
 const sanitize = (name: string) => THREE.PropertyBinding.sanitizeNodeName(name);
-const address = (key: string) =>
-  resourceUrl(`../assets/${key}`);
+const address = (key: string) => resourceUrl(`../assets/${key}`);
 
 export async function loadAtlas(
   config: ViewerConfig,
@@ -130,7 +129,10 @@ export async function loadGlb(
   signal: AbortSignal,
 ): Promise<LoadedPart[]> {
   const response = await fetch(
-    resourceUrl(config.modelPath || `../models/${encodeURIComponent(config.model.id)}/file`),
+    resourceUrl(
+      config.modelPath ||
+        `../models/${encodeURIComponent(config.model.id)}/file`,
+    ),
     { signal },
   );
   if (!response.ok)
@@ -139,7 +141,9 @@ export async function loadGlb(
   const manager = new THREE.LoadingManager();
   manager.setURLModifier(resourceUrl);
   const draco = new DRACOLoader(manager);
-  draco.setDecoderPath(new URL("../runtime/", config.resourceBase || location.href).href);
+  draco.setDecoderPath(
+    new URL("../runtime/", config.resourceBase || location.href).href,
+  );
   draco.setWorkerLimit(1);
   const loader = new GLTFLoader(manager);
   loader.setDRACOLoader(draco);

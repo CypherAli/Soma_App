@@ -9,9 +9,19 @@ const state = "a".repeat(64),
   code = "b".repeat(43);
 test("Expo Go callback matches the exact Metro host, port and route", () => {
   const target = "exp://192.168.1.12:8081/--/oauth";
-  assert.equal(readOAuthReturn(`${target}?state=${state}&code=${code}`, state, target), code);
-  for (const value of [target.replace("8081", "8082"), target.replace("1.12", "1.13"), "soma://oauth", target + "/other"])
-    assert.throws(() => readOAuthReturn(`${value}?state=${state}&code=${code}`, state, target));
+  assert.equal(
+    readOAuthReturn(`${target}?state=${state}&code=${code}`, state, target),
+    code,
+  );
+  for (const value of [
+    target.replace("8081", "8082"),
+    target.replace("1.12", "1.13"),
+    "soma://oauth",
+    target + "/other",
+  ])
+    assert.throws(() =>
+      readOAuthReturn(`${value}?state=${state}&code=${code}`, state, target),
+    );
 });
 test("OAuth return requires the exact app route, local state and a single short-lived code", () => {
   assert.equal(

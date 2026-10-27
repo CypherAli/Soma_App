@@ -78,37 +78,4 @@ export interface ViewerProps {
   onEvent: (event: ViewerEvent) => void;
   onError: (message: string) => void;
 }
-export function parseViewerEvent(value: unknown): ViewerEvent | null {
-  if (!value || typeof value !== "object") return null;
-  const data = value as Record<string, unknown>;
-  if (data.source !== "soma-mobile-viewer") return null;
-  if (
-    data.type === "ready" &&
-    Array.isArray(data.structures) &&
-    Array.isArray(data.groups) &&
-    data.structures.length <= 10000
-  )
-    return data as unknown as ViewerEvent;
-  if (
-    data.type === "state" &&
-    data.state &&
-    typeof data.state === "object" &&
-    typeof (data.state as ViewerState).explode === "number" &&
-    Array.isArray((data.state as ViewerState).hiddenCategories)
-  )
-    return data as unknown as ViewerEvent;
-  if (
-    data.type === "selected" &&
-    (data.structure === null ||
-      (typeof data.structure === "object" &&
-        data.structure !== null &&
-        "meshName" in data.structure))
-  )
-    return data as unknown as ViewerEvent;
-  if (
-    (data.type === "error" || data.type === "unavailable") &&
-    typeof data.message === "string"
-  )
-    return data as unknown as ViewerEvent;
-  return null;
-}
+export { parseViewerEvent } from "./viewerProtocol";

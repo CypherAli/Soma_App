@@ -73,9 +73,15 @@ export function ReviewScreen() {
     <Page refresh>
       <Kicker>Học tập</Kicker>
       <Title>Ôn tập</Title>
-      <Button secondary onPress={() => router.push("/sources")}>Đề ôn tập giải phẫu</Button>
-      <Body muted style={{ marginTop: 8, marginBottom: 16, fontSize: 12 }}>Nguồn do bạn cung cấp</Body>
-      <Button secondary onPress={() => router.push("/assistant")}>Hỏi trợ lý</Button>
+      <Button secondary onPress={() => router.push("/sources")}>
+        Đề ôn tập giải phẫu
+      </Button>
+      <Body muted style={{ marginTop: 8, marginBottom: 16, fontSize: 12 }}>
+        Nguồn do bạn cung cấp
+      </Body>
+      <Button secondary onPress={() => router.push("/assistant")}>
+        Hỏi trợ lý
+      </Button>
       <Heading>Luyện theo mô hình 3D</Heading>
       {!app.user ? (
         <SignInPrompt />

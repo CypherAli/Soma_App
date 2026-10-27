@@ -14,6 +14,8 @@ Người dùng chọn bản Expo trong khung điện thoại để trình diễn
 
 API laptop: `http://127.0.0.1:8083/api`, gateway giới hạn route mobile, chuyển đến backend local cổng 4000. Bản laptop không phụ thuộc link Cloudflare tạm. Chỉ dùng địa chỉ này trên máy tính đang chạy; `localhost` trên điện thoại là chính điện thoại đó.
 
+Chatbot còn dùng dịch vụ assistant của web (mặc định cổng 3000, cấu hình backend `MOBILE_WEB_URL`). Cần giữ web đang chạy khi dùng trợ lý; launcher app chỉ tự kiểm tra/khởi động API và gateway local.
+
 ## Đăng nhập GitHub/Facebook
 
 Mở **Cá nhân → Đăng nhập**, chọn nhà cung cấp, tự đăng nhập và cấp quyền trên trang của họ. Trình duyệt quay về cùng cửa sổ Soma. Phiên web và bằng chứng đăng nhập lưu theo tab; mã phiên không đi trong URL.

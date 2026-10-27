@@ -8,7 +8,9 @@ import { pipeline } from "node:stream/promises";
 
 // Download only: no API forwarding, directory serving, authentication or user data.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const { version } = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
+const { version } = JSON.parse(
+  readFileSync(resolve(root, "package.json"), "utf8"),
+);
 const filename = `soma-${version}-preview.apk`;
 const file = resolve(root, "builds", filename);
 const info = await stat(file);
@@ -21,11 +23,17 @@ createServer(async (req, res) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("Cache-Control", "no-store");
-  if (!["GET", "HEAD"].includes(req.method)) { res.writeHead(405).end(); return; }
+  if (!["GET", "HEAD"].includes(req.method)) {
+    res.writeHead(405).end();
+    return;
+  }
   const path = new URL(req.url, "http://localhost").pathname;
   if (path === "/") {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.setHeader("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'");
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'",
+    );
     res.end(req.method === "HEAD" ? undefined : html);
     return;
   }
@@ -34,16 +42,27 @@ createServer(async (req, res) => {
     res.end(req.method === "HEAD" ? undefined : `${sha256}  ${filename}\n`);
     return;
   }
-  if (path !== "/soma.apk" && path !== `/${filename}`) { res.writeHead(404).end(); return; }
-  let start = 0, end = info.size - 1;
-  if (req.headers.range && (!req.headers["if-range"] || req.headers["if-range"] === `"${sha256}"`)) {
+  if (path !== "/soma.apk" && path !== `/${filename}`) {
+    res.writeHead(404).end();
+    return;
+  }
+  let start = 0,
+    end = info.size - 1;
+  if (
+    req.headers.range &&
+    (!req.headers["if-range"] || req.headers["if-range"] === `"${sha256}"`)
+  ) {
     const match = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range);
     if (!match || Number(match[1]) >= info.size) {
-      res.writeHead(416, { "Content-Range": `bytes */${info.size}` }).end(); return;
+      res.writeHead(416, { "Content-Range": `bytes */${info.size}` }).end();
+      return;
     }
     start = Number(match[1]);
     end = match[2] ? Math.min(Number(match[2]), end) : end;
-    if (end < start) { res.writeHead(416).end(); return; }
+    if (end < start) {
+      res.writeHead(416).end();
+      return;
+    }
     res.statusCode = 206;
     res.setHeader("Content-Range", `bytes ${start}-${end}/${info.size}`);
   }
@@ -52,7 +71,18 @@ createServer(async (req, res) => {
   res.setHeader("Accept-Ranges", "bytes");
   res.setHeader("Content-Length", end - start + 1);
   res.setHeader("ETag", `"${sha256}"`);
-  if (req.method === "HEAD") { res.end(); return; }
-  try { await pipeline(createReadStream(file, { start, end }), res); }
-  catch { if (!res.headersSent) res.writeHead(500); res.end(); }
-}).listen(8084, "127.0.0.1", () => console.log(`APK-only download: http://127.0.0.1:8084 · ${filename} · ${sha256}`));
+  if (req.method === "HEAD") {
+    res.end();
+    return;
+  }
+  try {
+    await pipeline(createReadStream(file, { start, end }), res);
+  } catch {
+    if (!res.headersSent) res.writeHead(500);
+    res.end();
+  }
+}).listen(8084, "127.0.0.1", () =>
+  console.log(
+    `APK-only download: http://127.0.0.1:8084 · ${filename} · ${sha256}`,
+  ),
+);

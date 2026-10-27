@@ -6,9 +6,12 @@ export function modelArt(
   model: AnatomyModel,
   apiUrl: string,
 ): ImageSourcePropType | undefined {
-  return (OFFLINE_ART as Record<string, ImageSourcePropType>)[model.id] ?? (model.thumbnailPath
-    ? { uri: `${apiUrl}${model.thumbnailPath}` }
-    : MODEL_ART[model.id]);
+  return (
+    (OFFLINE_ART as Record<string, ImageSourcePropType>)[model.id] ??
+    (model.thumbnailPath
+      ? { uri: `${apiUrl}${model.thumbnailPath}` }
+      : MODEL_ART[model.id])
+  );
 }
 export const MODEL_ART: Record<string, ImageSourcePropType> = {
   "ban-tay": require("../../assets/anatomy/hand_bones.png"),

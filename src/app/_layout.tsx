@@ -51,11 +51,23 @@ function Routes() {
   );
 }
 export default function Layout() {
-  return <PhonePresentation><Application /></PhonePresentation>;
+  return (
+    <PhonePresentation>
+      <Application />
+    </PhonePresentation>
+  );
 }
 function Application() {
-  const [fontsLoaded, fontError] = useFonts({ SomaSans: require("../../assets/fonts/NotoSans-Regular.ttf"), SomaSansBold: require("../../assets/fonts/NotoSans-SemiBold.ttf") });
-  if (!fontsLoaded && !fontError) return <View style={{ flex: 1, justifyContent: "center" }}><ActivityIndicator /></View>;
+  const [fontsLoaded, fontError] = useFonts({
+    SomaSans: require("../../assets/fonts/NotoSans-Regular.ttf"),
+    SomaSansBold: require("../../assets/fonts/NotoSans-SemiBold.ttf"),
+  });
+  if (!fontsLoaded && !fontError)
+    return (
+      <View style={{ flex: 1, justifyContent: "center" }}>
+        <ActivityIndicator />
+      </View>
+    );
   return (
     <SafeAreaProvider>
       <AppProvider>

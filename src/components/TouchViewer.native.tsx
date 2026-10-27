@@ -1,4 +1,11 @@
-import { forwardRef, memo, useEffect, useImperativeHandle, useRef, useState } from "react";
+import {
+  forwardRef,
+  memo,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import { ActivityIndicator, View } from "react-native";
 import { WebView } from "react-native-webview";
 import type { ViewerHandle, ViewerProps } from "./Viewer.types";
@@ -14,7 +21,9 @@ export const TouchViewer = memo(
     const view = useRef<WebView>(null),
       t = useTheme(),
       origin = new URL(uri).origin;
-    const [source, setSource] = useState<{ html: string; baseUrl: string } | { uri: string } | null>(null);
+    const [source, setSource] = useState<
+      { html: string; baseUrl: string } | { uri: string } | null
+    >(null);
     const terminal = useRef(false);
     const callbacks = useRef({ onError, onEvent });
     callbacks.current = { onError, onEvent };
@@ -25,15 +34,25 @@ export const TouchViewer = memo(
       const timeout = setTimeout(() => {
         if (active && !terminal.current) {
           terminal.current = true;
-          callbacks.current.onError("Chưa mở được mô hình sau 30 giây. Hãy tải lại; dữ liệu 3D đã có sẵn trong ứng dụng.");
+          callbacks.current.onError(
+            "Chưa mở được mô hình sau 30 giây. Hãy tải lại; dữ liệu 3D đã có sẵn trong ứng dụng.",
+          );
         }
       }, 30000);
-      void offlineViewerHtml(uri).then((html) => {
-        if (active && !terminal.current) setSource(html ? { html, baseUrl: "https://offline.soma.local/" } : { uri });
-      }).catch(() => {
-        if (active && !terminal.current) setSource({ uri });
-      });
-      return () => { active = false; clearTimeout(timeout); };
+      void offlineViewerHtml(uri)
+        .then((html) => {
+          if (active && !terminal.current)
+            setSource(
+              html ? { html, baseUrl: "https://offline.soma.local/" } : { uri },
+            );
+        })
+        .catch(() => {
+          if (active && !terminal.current) setSource({ uri });
+        });
+      return () => {
+        active = false;
+        clearTimeout(timeout);
+      };
     }, [uri]);
     useImperativeHandle(
       ref,
@@ -63,7 +82,8 @@ export const TouchViewer = memo(
               JSON.parse(message.nativeEvent.data),
             );
             if (event) {
-              if (["ready", "error", "unavailable"].includes(event.type)) terminal.current = true;
+              if (["ready", "error", "unavailable"].includes(event.type))
+                terminal.current = true;
               onEvent(event);
             }
           } catch {
@@ -76,7 +96,9 @@ export const TouchViewer = memo(
         onHttpError={() =>
           onError("Máy chủ chưa mở được mô hình. Vui lòng thử lại.")
         }
-        onRenderProcessGone={() => onError("Trình xem đã đóng để giải phóng bộ nhớ. Hãy mở lại mô hình.")}
+        onRenderProcessGone={() =>
+          onError("Trình xem đã đóng để giải phóng bộ nhớ. Hãy mở lại mô hình.")
+        }
         javaScriptEnabled
         domStorageEnabled={false}
         scrollEnabled={false}

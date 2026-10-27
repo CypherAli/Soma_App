@@ -1,10 +1,9 @@
-import { DisplayControls } from "../ui/DisplayControls";
-import { Text } from "../ui/i18n";
+import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   FlatList,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -15,19 +14,22 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
-import { useApp } from "../core/AppProvider";
-import { errorMessage } from "../core/api";
-import { fold } from "../core/practice";
-import { SYSTEM_NAMES } from "../core/types";
 import { TouchViewer } from "../components/TouchViewer";
 import type {
   ViewerEvent,
   ViewerGroup,
   ViewerHandle,
-  ViewerStructure,
   ViewerState,
+  ViewerStructure,
 } from "../components/Viewer.types";
+import { useApp } from "../core/AppProvider";
+import { errorMessage } from "../core/api";
+import { fold } from "../core/practice";
+import { SYSTEM_NAMES } from "../core/types";
+import { ViewerTools } from "../features/atlas/ViewerTools";
+import { viewerStyles as styles } from "../features/atlas/viewerStyles";
+import { DisplayControls } from "../ui/DisplayControls";
+import { modelArt } from "../ui/art";
 import {
   Body,
   Button,
@@ -37,8 +39,8 @@ import {
   Notice,
   Page,
 } from "../ui/components";
+import { Text } from "../ui/i18n";
 import { useTheme } from "../ui/theme";
-import { modelArt } from "../ui/art";
 
 type Panel = "structures" | "layers" | "tools" | "info" | null;
 export function ViewerScreen() {
@@ -660,332 +662,11 @@ function ViewerContent() {
                 }}
               >
                 {contentPanel === "tools" ? (
-                  <>
-                    <Body>
-                      Tách rời từng cấu trúc để quan sát. Chọn 0% để ghép lại
-                      đúng vị trí ban đầu.
-                    </Body>
-                    <Text
-                      style={{
-                        color: t.ink,
-                        fontWeight: "600",
-                        fontSize: 16,
-                        marginTop: 22,
-                        marginBottom: 12,
-                      }}
-                    >
-                      Mức tách · {Math.round((sceneState?.explode ?? 0) * 100)}%
-                    </Text>
-                    <View style={[styles.row, { marginBottom: 12 }]}>
-                      <Button
-                        secondary
-                        style={{ flex: 1 }}
-                        onPress={() =>
-                          viewer.current?.command({
-                            type: "explode",
-                            amount: sceneState?.explode ?? 0,
-                            scope: "all",
-                          })
-                        }
-                      >
-                        Tất cả cấu trúc
-                      </Button>
-                      <Button
-                        secondary
-                        disabled={!selected}
-                        style={{ flex: 1 }}
-                        onPress={() =>
-                          viewer.current?.command({
-                            type: "explode",
-                            amount: sceneState?.explode || 0.01,
-                            scope: "selected",
-                          })
-                        }
-                      >
-                        Chỉ cấu trúc đang chọn
-                      </Button>
-                    </View>
-                    <Body muted style={{ fontSize: 12, marginBottom: 12 }}>
-                      {sceneState?.explodeScope === "selected"
-                        ? "Đang tách cấu trúc đã chọn"
-                        : "Đang tách toàn bộ mô hình"}
-                    </Body>
-                    <View style={[styles.row, { gap: 6 }]}>
-                      {[0, 0.25, 0.5, 0.75, 1].map((amount) => (
-                        <Pressable
-                          key={amount}
-                          accessibilityRole="button"
-                          accessibilityLabel={
-                            amount === 0
-                              ? "Gộp mô hình"
-                              : `Tách ${amount * 100}%`
-                          }
-                          accessibilityState={{
-                            selected:
-                              Math.abs((sceneState?.explode ?? 0) - amount) <
-                              0.01,
-                          }}
-                          onPress={() =>
-                            viewer.current?.command({ type: "explode", amount })
-                          }
-                          style={[
-                            styles.action,
-                            {
-                              flex: 1,
-                              borderColor: t.rule,
-                              backgroundColor:
-                                Math.abs((sceneState?.explode ?? 0) - amount) <
-                                0.01
-                                  ? t.tint
-                                  : t.paper,
-                            },
-                          ]}
-                        >
-                          <Text style={{ color: t.ink, fontSize: 12 }}>
-                            {amount * 100}%
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                    <View style={[styles.row, { marginTop: 8 }]}>
-                      <Button
-                        secondary
-                        style={{ flex: 1 }}
-                        onPress={() =>
-                          viewer.current?.command({
-                            type: "explode",
-                            amount: Math.max(
-                              0,
-                              Math.round((sceneState?.explode ?? 0) * 100 - 1) /
-                                100,
-                            ),
-                          })
-                        }
-                      >
-                        − 1%
-                      </Button>
-                      <Button
-                        secondary
-                        style={{ flex: 1 }}
-                        onPress={() =>
-                          viewer.current?.command({
-                            type: "explode",
-                            amount: Math.min(
-                              1,
-                              Math.round((sceneState?.explode ?? 0) * 100 + 1) /
-                                100,
-                            ),
-                          })
-                        }
-                      >
-                        + 1%
-                      </Button>
-                    </View>
-                    <Text
-                      style={{
-                        color: t.ink,
-                        fontWeight: "600",
-                        fontSize: 16,
-                        marginTop: 26,
-                        marginBottom: 12,
-                      }}
-                    >
-                      Góc nhìn
-                    </Text>
-                    <View style={styles.viewGrid}>
-                      {(
-                        [
-                          ["front", "Trước"],
-                          ["back", "Sau"],
-                          ["side", "Bên"],
-                          ["three-quarter", "Góc chéo"],
-                          ["top", "Trên"],
-                          ["bottom", "Dưới"],
-                        ] as const
-                      ).map(([view, label]) => (
-                        <Pressable
-                          key={view}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Nhìn ${label.toLowerCase()}`}
-                          accessibilityState={{
-                            selected: sceneState?.view === view,
-                          }}
-                          onPress={() =>
-                            viewer.current?.command({ type: "view", view })
-                          }
-                          style={[
-                            styles.action,
-                            {
-                              minWidth: 64,
-                              minHeight: 44,
-                              paddingHorizontal: 6,
-                              flexBasis: "30%",
-                              flexGrow: 1,
-                              flexShrink: 0,
-                              borderColor: t.rule,
-                              backgroundColor:
-                                sceneState?.view === view ? t.tint : t.paper,
-                            },
-                          ]}
-                        >
-                          <Text
-                            numberOfLines={1}
-                            adjustsFontSizeToFit
-                            minimumFontScale={0.9}
-                            style={{
-                              color: t.ink,
-                              fontSize: 12,
-                              lineHeight: 18,
-                              textAlign: "center",
-                              flexShrink: 1,
-                            }}
-                          >
-                            {label}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                    <View
-                      style={[
-                        styles.row,
-                        { marginTop: 22, justifyContent: "space-between" },
-                      ]}
-                    >
-                      <Text style={{ color: t.ink, fontSize: 15 }}>
-                        Nhãn cấu trúc
-                      </Text>
-                      <Switch
-                        accessibilityLabel="Nhãn cấu trúc"
-                        value={sceneState?.showLabels ?? false}
-                        trackColor={{ true: t.accent, false: t.rule }}
-                        onValueChange={(enabled) =>
-                          viewer.current?.command({ type: "labels", enabled })
-                        }
-                      />
-                    </View>
-                    <View
-                      style={[
-                        styles.row,
-                        { marginTop: 15, justifyContent: "space-between" },
-                      ]}
-                    >
-                      <Text style={{ color: t.ink, fontSize: 15 }}>
-                        Mặt cắt
-                      </Text>
-                      <Switch
-                        accessibilityLabel="Bật mặt cắt"
-                        value={sceneState?.clip.enabled ?? false}
-                        trackColor={{ true: t.accent, false: t.rule }}
-                        onValueChange={(enabled) =>
-                          viewer.current?.command({ type: "clip", enabled })
-                        }
-                      />
-                    </View>
-                    {sceneState?.clip.enabled && (
-                      <>
-                        <View style={[styles.row, { marginTop: 12 }]}>
-                          {(["x", "y", "z"] as const).map((axis) => (
-                            <Pressable
-                              key={axis}
-                              accessibilityRole="button"
-                              accessibilityLabel={`Trục ${axis.toUpperCase()}`}
-                              accessibilityState={{
-                                selected: sceneState.clip.axis === axis,
-                              }}
-                              onPress={() =>
-                                viewer.current?.command({ type: "clip", axis })
-                              }
-                              style={[
-                                styles.action,
-                                {
-                                  flex: 1,
-                                  borderColor: t.rule,
-                                  backgroundColor:
-                                    sceneState.clip.axis === axis
-                                      ? t.tint
-                                      : t.paper,
-                                },
-                              ]}
-                            >
-                              <Text style={{ color: t.ink }}>
-                                {axis.toUpperCase()}
-                              </Text>
-                            </Pressable>
-                          ))}
-                        </View>
-                        <View style={[styles.row, { marginTop: 12 }]}>
-                          <Button
-                            secondary
-                            style={{ flex: 1 }}
-                            onPress={() =>
-                              viewer.current?.command({
-                                type: "clip",
-                                percent: Math.max(
-                                  0,
-                                  sceneState.clip.percent - 10,
-                                ),
-                              })
-                            }
-                          >
-                            − 10%
-                          </Button>
-                          <Text style={{ color: t.ink }}>
-                            {Math.round(sceneState.clip.percent)}%
-                          </Text>
-                          <Button
-                            secondary
-                            style={{ flex: 1 }}
-                            onPress={() =>
-                              viewer.current?.command({
-                                type: "clip",
-                                percent: Math.min(
-                                  100,
-                                  sceneState.clip.percent + 10,
-                                ),
-                              })
-                            }
-                          >
-                            + 10%
-                          </Button>
-                        </View>
-                        <Button
-                          secondary
-                          style={{ marginTop: 10 }}
-                          onPress={() =>
-                            viewer.current?.command({
-                              type: "clip",
-                              keepPositive: !sceneState.clip.keepPositive,
-                            })
-                          }
-                        >
-                          Đổi phía giữ lại
-                        </Button>
-                      </>
-                    )}
-                    {sceneState?.isolate && (
-                      <Button
-                        secondary
-                        style={{ marginTop: 18 }}
-                        onPress={() =>
-                          viewer.current?.command({
-                            type: "isolate",
-                            enabled: false,
-                          })
-                        }
-                      >
-                        Bỏ cô lập cấu trúc
-                      </Button>
-                    )}
-                    <Button
-                      secondary
-                      style={{ marginTop: 24 }}
-                      onPress={() =>
-                        viewer.current?.command({ type: "restore" })
-                      }
-                    >
-                      Khôi phục toàn bộ mô hình
-                    </Button>
-                  </>
+                  <ViewerTools
+                    sceneState={sceneState}
+                    selected={selected}
+                    onCommand={(command) => viewer.current?.command(command)}
+                  />
                 ) : contentPanel === "layers" ? (
                   groups.map((item) => (
                     <View
@@ -1123,72 +804,3 @@ function ViewerContent() {
     </SafeAreaView>
   );
 }
-const styles = StyleSheet.create({
-  header: {
-    minHeight: 72,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  iconButton: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 13,
-  },
-  row: { flexDirection: "row", alignItems: "center", gap: 12 },
-  viewGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  loading: { position: "absolute", right: 20, top: 20 },
-  sidePosition: {
-    position: "absolute",
-    top: 16,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-  },
-  sides: {
-    flexDirection: "row",
-    padding: 4,
-    borderRadius: 13,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  tools: { position: "absolute", right: 14, bottom: 45, gap: 8 },
-  gesture: {
-    position: "absolute",
-    bottom: 15,
-    alignSelf: "center",
-    fontSize: 11,
-  },
-  dock: {
-    paddingHorizontal: 18,
-    paddingTop: 18,
-    paddingBottom: 15,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  action: {
-    flex: 1,
-    minHeight: 46,
-    borderWidth: 1,
-    borderRadius: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-  },
-  modal: { flex: 1, justifyContent: "flex-end", backgroundColor: "#00000055" },
-  sheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: "hidden",
-  },
-  handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 3,
-    alignSelf: "center",
-    marginTop: 12,
-    marginBottom: 10,
-  },
-});

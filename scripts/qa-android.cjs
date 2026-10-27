@@ -59,7 +59,13 @@ const decode = (text) =>
     .replace(/&amp;/g, "&");
 function hierarchy() {
   adb("shell", "rm", "-f", "/sdcard/soma-qa.xml");
-  const result = adb("shell", "uiautomator", "dump", "--compressed", "/sdcard/soma-qa.xml");
+  const result = adb(
+    "shell",
+    "uiautomator",
+    "dump",
+    "--compressed",
+    "/sdcard/soma-qa.xml",
+  );
   if (!result.includes("UI hierchary dumped")) return [];
   const xml = adb("shell", "cat", "/sdcard/soma-qa.xml");
   return [...xml.matchAll(/<node\s+([^>]+)>?/g)].map((match) => {
@@ -79,7 +85,9 @@ function hierarchy() {
 }
 function visible(node) {
   const [x, y, r, b] = node.bounds;
-  return r > x && b > y && y >= viewport.height * 0.02 && b <= viewport.height * 0.98;
+  return (
+    r > x && b > y && y >= viewport.height * 0.02 && b <= viewport.height * 0.98
+  );
 }
 function screenshot(name, region) {
   const file = path.join(output, name + ".png");
@@ -95,20 +103,34 @@ function screenshot(name, region) {
   const [x, y, r, b] = region.map(Math.round);
   const hash = createHash("sha256");
   for (let row = y; row < b; row++)
-    hash.update(png.data.subarray((row * png.width + x) * 4, (row * png.width + r) * 4));
+    hash.update(
+      png.data.subarray((row * png.width + x) * 4, (row * png.width + r) * 4),
+    );
   return hash.digest("hex");
 }
 function swipe(x1, y1, x2, y2, duration = 350) {
-  adb("shell", "input", "swipe", ...[x1 * viewport.width, y1 * viewport.height,
-    x2 * viewport.width, y2 * viewport.height, duration].map((n) => String(Math.round(n))));
+  adb(
+    "shell",
+    "input",
+    "swipe",
+    ...[
+      x1 * viewport.width,
+      y1 * viewport.height,
+      x2 * viewport.width,
+      y2 * viewport.height,
+      duration,
+    ].map((n) => String(Math.round(n))),
+  );
 }
 async function waitFor(label, timeout = 45000) {
   const deadline = Date.now() + timeout;
   do {
     const nodes = hierarchy();
-    const node = nodes.find((n) => label instanceof RegExp
-      ? label.test(n.label) || label.test(n.text || "")
-      : n.label === label || n.text === label);
+    const node = nodes.find((n) =>
+      label instanceof RegExp
+        ? label.test(n.label) || label.test(n.text || "")
+        : n.label === label || n.text === label,
+    );
     if (node) return node;
     await pause(300);
   } while (Date.now() < deadline);
@@ -142,8 +164,7 @@ async function tapLabel(
       await pause(250);
       return;
     }
-    if (scroll)
-      swipe(0.5, 0.77, 0.5, 0.35);
+    if (scroll) swipe(0.5, 0.77, 0.5, 0.35);
     await pause(250);
   }
   throw new Error(`Android control not available: ${label}`);
@@ -181,16 +202,36 @@ async function api(route, body, token) {
   let account, email;
   try {
     assert.equal(adb("get-state").trim(), "device");
-    assert.equal(adb("shell", "getprop", "sys.boot_completed").trim(), "1", "Emulator must finish booting before QA");
+    assert.equal(
+      adb("shell", "getprop", "sys.boot_completed").trim(),
+      "1",
+      "Emulator must finish booting before QA",
+    );
     const expectedVersion = require("../package.json").version;
     const installed = adb("shell", "dumpsys", "package", "vn.soma.mobile");
-    assert.ok(installed.includes(`versionName=${expectedVersion}`), "QA must run the APK matching the current source version");
-    const apkFile = process.env.ANDROID_QA_APK || path.resolve(__dirname, `../builds/soma-${expectedVersion}-preview.apk`);
-    const expectedHash = createHash("sha256").update(fs.readFileSync(apkFile)).digest("hex");
-    const packagePath = adb("shell", "pm", "path", "vn.soma.mobile").trim().split(/\r?\n/)[0].replace(/^package:/, "");
-    assert.equal(adb("shell", "sha256sum", packagePath).trim().split(/\s+/)[0], expectedHash, "Installed APK must match the file being delivered");
+    assert.ok(
+      installed.includes(`versionName=${expectedVersion}`),
+      "QA must run the APK matching the current source version",
+    );
+    const apkFile =
+      process.env.ANDROID_QA_APK ||
+      path.resolve(__dirname, `../builds/soma-${expectedVersion}-preview.apk`);
+    const expectedHash = createHash("sha256")
+      .update(fs.readFileSync(apkFile))
+      .digest("hex");
+    const packagePath = adb("shell", "pm", "path", "vn.soma.mobile")
+      .trim()
+      .split(/\r?\n/)[0]
+      .replace(/^package:/, "");
+    assert.equal(
+      adb("shell", "sha256sum", packagePath).trim().split(/\s+/)[0],
+      expectedHash,
+      "Installed APK must match the file being delivered",
+    );
     passed(`APK ${expectedVersion} identity and SHA-256`);
-    const size = [...adb("shell", "wm", "size").matchAll(/(\d+)x(\d+)/g)].at(-1);
+    const size = [...adb("shell", "wm", "size").matchAll(/(\d+)x(\d+)/g)].at(
+      -1,
+    );
     assert.ok(size, "Android viewport must be available");
     viewport = { width: Number(size[1]), height: Number(size[2]) };
     adb("shell", "am", "force-stop", "vn.soma.mobile");
@@ -203,14 +244,29 @@ async function api(route, body, token) {
     const structureControl = await waitFor(/^Cấu trúc \([1-9]\d*\)$/, 60000);
     screenshot("viewer");
     passed("native WebView bundled atlas");
-    const sideLabels = [...new Set(hierarchy().filter((node) => ["Tay phải", "Tay trái", "Hai tay"].includes(node.label)).map((node) => node.label))];
-    assert.ok(sideLabels.length, "Hand viewer must expose its available side controls");
+    const sideLabels = [
+      ...new Set(
+        hierarchy()
+          .filter((node) =>
+            ["Tay phải", "Tay trái", "Hai tay"].includes(node.label),
+          )
+          .map((node) => node.label),
+      ),
+    ];
+    assert.ok(
+      sideLabels.length,
+      "Hand viewer must expose its available side controls",
+    );
     for (const label of sideLabels) await tapLabel(label);
     await pause(800);
     screenshot("viewer-both");
-    await tapLabel(sideLabels.includes("Tay phải") ? "Tay phải" : sideLabels[0]);
+    await tapLabel(
+      sideLabels.includes("Tay phải") ? "Tay phải" : sideLabels[0],
+    );
     passed(`available hand-side controls: ${sideLabels.join(", ")}`);
-    const webview = hierarchy().find((n) => n.class === "android.webkit.WebView");
+    const webview = hierarchy().find(
+      (n) => n.class === "android.webkit.WebView",
+    );
     assert.ok(webview, "Native 3D WebView must be accessible");
     const [vx, vy, vr, vb] = webview.bounds;
     const region = [vx + 10, vy + 10, vr - 10, vb - 10];
@@ -218,13 +274,26 @@ async function api(route, body, token) {
     const before = screenshot("before-orbit", region);
     let afterOrbit = before;
     for (const duration of [1000, 1400]) {
-      swipe(0.32, (vy + (vb - vy) * 0.48) / viewport.height, 0.68, (vy + (vb - vy) * 0.56) / viewport.height, duration);
+      swipe(
+        0.32,
+        (vy + (vb - vy) * 0.48) / viewport.height,
+        0.68,
+        (vy + (vb - vy) * 0.56) / viewport.height,
+        duration,
+      );
       await pause(1800);
       afterOrbit = screenshot("after-orbit", region);
       if (afterOrbit !== before) break;
     }
-    assert.notEqual(before, afterOrbit, "3D canvas pixels must change after touch orbit");
-    assert.ok(hierarchy().some((n) => n.class === "android.webkit.WebView"), "App must remain in the 3D viewer after the gesture");
+    assert.notEqual(
+      before,
+      afterOrbit,
+      "3D canvas pixels must change after touch orbit",
+    );
+    assert.ok(
+      hierarchy().some((n) => n.class === "android.webkit.WebView"),
+      "App must remain in the 3D viewer after the gesture",
+    );
     passed("touch orbit changes canvas");
     await tapLabel("Lưu mô hình");
     await waitFor("Bỏ lưu mô hình");
@@ -252,10 +321,20 @@ async function api(route, body, token) {
     await waitFor("Cá nhân");
     launch("settings");
     await waitFor("Địa chỉ API");
-    assert.ok(hierarchy().some((node) => node.class === "android.widget.EditText" && node.text === "http://127.0.0.1:4000/api"), "Standalone preview must preserve a custom USB server after process restart");
+    assert.ok(
+      hierarchy().some(
+        (node) =>
+          node.class === "android.widget.EditText" &&
+          node.text === "http://127.0.0.1:4000/api",
+      ),
+      "Standalone preview must preserve a custom USB server after process restart",
+    );
     screenshot("restored-api");
     passed("custom USB server survives process restart");
-    for (const [route, title] of [["terms", "Điều khoản sử dụng"], ["privacy", "Chính sách bảo mật"]]) {
+    for (const [route, title] of [
+      ["terms", "Điều khoản sử dụng"],
+      ["privacy", "Chính sách bảo mật"],
+    ]) {
       launch(route);
       await waitFor(title);
       screenshot(route);
@@ -273,7 +352,12 @@ async function api(route, body, token) {
     await tapLabel("Email");
     await pause(700);
     await typeText(email);
-    assert.ok(hierarchy().some((n) => n.class === "android.widget.EditText" && n.text === email), "Native email input must contain the full QA address");
+    assert.ok(
+      hierarchy().some(
+        (n) => n.class === "android.widget.EditText" && n.text === email,
+      ),
+      "Native email input must contain the full QA address",
+    );
     await tapLabel("Mật khẩu");
     await pause(700);
     await typeText(password);
@@ -347,14 +431,38 @@ async function api(route, body, token) {
       "PASS: Android APK, 3D, native authentication, process restart persistence and shared history.",
     );
   } catch (error) {
-    try { screenshot("failure"); } catch { /* Preserve the original failure if ADB is unavailable. */ }
     try {
-      fs.writeFileSync(path.join(output, "failure-exit-info.txt"), adb("shell", "dumpsys", "activity", "exit-info", "vn.soma.mobile"));
-      fs.writeFileSync(path.join(output, "failure-crash-log.txt"), adb("logcat", "-d", "-b", "crash", "-t", "120"));
-    } catch { /* Emulator diagnostics are best effort. */ }
-    fs.writeFileSync(path.join(output, "report.json"), JSON.stringify({
-      passed: false, checkedAt: new Date().toISOString(), device, viewport, checks, error: error.message,
-    }, null, 2));
+      screenshot("failure");
+    } catch {
+      /* Preserve the original failure if ADB is unavailable. */
+    }
+    try {
+      fs.writeFileSync(
+        path.join(output, "failure-exit-info.txt"),
+        adb("shell", "dumpsys", "activity", "exit-info", "vn.soma.mobile"),
+      );
+      fs.writeFileSync(
+        path.join(output, "failure-crash-log.txt"),
+        adb("logcat", "-d", "-b", "crash", "-t", "120"),
+      );
+    } catch {
+      /* Emulator diagnostics are best effort. */
+    }
+    fs.writeFileSync(
+      path.join(output, "report.json"),
+      JSON.stringify(
+        {
+          passed: false,
+          checkedAt: new Date().toISOString(),
+          device,
+          viewport,
+          checks,
+          error: error.message,
+        },
+        null,
+        2,
+      ),
+    );
     throw error;
   } finally {
     try {
@@ -365,7 +473,11 @@ async function api(route, body, token) {
         ]);
     } finally {
       await db.end();
-      try { adb("reverse", "--remove", "tcp:4000"); } catch { /* The route may not have been created if an earlier check failed. */ }
+      try {
+        adb("reverse", "--remove", "tcp:4000");
+      } catch {
+        /* The route may not have been created if an earlier check failed. */
+      }
       try {
         adb("shell", "am", "force-stop", "vn.soma.mobile");
         adb("shell", "pm", "clear", "vn.soma.mobile");

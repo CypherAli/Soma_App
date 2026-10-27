@@ -14,9 +14,17 @@ for (const [pathname, origin, expected] of [
   ["/api/admin/users", "http://localhost:8082", 403],
   ["/api/mobile/assistant", "https://untrusted.example", 403],
 ]) {
-  const response = await fetch(base + pathname, { method: "OPTIONS", headers: { Origin: origin, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "authorization, content-type" } });
+  const response = await fetch(base + pathname, {
+    method: "OPTIONS",
+    headers: {
+      Origin: origin,
+      "Access-Control-Request-Method": "POST",
+      "Access-Control-Request-Headers": "authorization, content-type",
+    },
+  });
   assert.equal(response.status, expected);
-  if (expected === 204) assert.equal(response.headers.get("access-control-allow-origin"), origin);
+  if (expected === 204)
+    assert.equal(response.headers.get("access-control-allow-origin"), origin);
 }
 for (const pathname of [
   "/api/admin/users",

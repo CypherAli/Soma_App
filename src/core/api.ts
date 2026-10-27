@@ -59,10 +59,13 @@ export async function apiRequest<T>(
       method: options.method ?? "GET",
       headers: {
         Accept: "application/json",
-        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...(options.body !== undefined
+          ? { "Content-Type": "application/json" }
+          : {}),
         ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
       },
-      body: options.body ? JSON.stringify(options.body) : undefined,
+      body:
+        options.body !== undefined ? JSON.stringify(options.body) : undefined,
       signal: abort.signal,
     });
     const data: unknown = await response.json().catch((error) => {
@@ -73,7 +76,9 @@ export async function apiRequest<T>(
       const message =
         data && typeof data === "object" && "message" in data
           ? (data as { message: unknown }).message
-          : data && typeof data === "object" && "error" in data ? (data as { error: unknown }).error : null;
+          : data && typeof data === "object" && "error" in data
+            ? (data as { error: unknown }).error
+            : null;
       throw new ApiError(
         response.status,
         typeof message === "string"

@@ -9,10 +9,18 @@ export async function readCredential() {
     if (raw) {
       try {
         const value = JSON.parse(raw) as Partial<Credential>;
-        if (typeof value.token === "string" && typeof value.userId === "string" && typeof value.apiUrl === "string" && typeof value.expiresAt === "string" && Date.parse(value.expiresAt) > Date.now())
+        if (
+          typeof value.token === "string" &&
+          typeof value.userId === "string" &&
+          typeof value.apiUrl === "string" &&
+          typeof value.expiresAt === "string" &&
+          Date.parse(value.expiresAt) > Date.now()
+        )
           credential = value as Credential;
         else sessionStorage.removeItem(KEY);
-      } catch { sessionStorage.removeItem(KEY); }
+      } catch {
+        sessionStorage.removeItem(KEY);
+      }
     }
   }
   return credential;

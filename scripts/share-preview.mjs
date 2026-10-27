@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream/promises";
+import { gatewayTimeout } from "./lib/gateway-policy.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const version = JSON.parse(
@@ -268,7 +269,7 @@ const server = http.createServer(async (req, res) => {
       if (req.headers[key]) headers[key] = req.headers[key];
     const request = http.request(
       new URL(url.pathname + url.search, upstream),
-      { method: req.method, headers, timeout: 45000 },
+      { method: req.method, headers, timeout: gatewayTimeout(url.pathname) },
       (response) => {
         for (const key of [
           "content-type",
@@ -285,9 +286,22 @@ const server = http.createServer(async (req, res) => {
       },
     );
     request.on("timeout", () => request.destroy(new Error("timeout")));
-    request.on("error", () => {
-      if (!res.headersSent) res.writeHead(502);
-      res.end();
+    request.on("error", (error) => {
+      if (res.headersSent) {
+        res.destroy();
+        return;
+      }
+      res.writeHead(error.message === "timeout" ? 504 : 502, {
+        "Content-Type": "application/json; charset=utf-8",
+      });
+      res.end(
+        JSON.stringify({
+          message:
+            url.pathname === "/api/mobile/assistant"
+              ? "Trợ lý chưa kết nối được dịch vụ trả lời. Câu hỏi đã được giữ lại; hãy thử gửi lại sau."
+              : "Chưa kết nối được máy chủ. Hãy kiểm tra dịch vụ local rồi thử lại.",
+        }),
+      );
     });
     res.on("close", () => request.destroy());
     request.end(body.length ? Buffer.concat(body) : undefined);

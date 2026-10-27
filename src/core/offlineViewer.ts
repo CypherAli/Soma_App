@@ -17,21 +17,52 @@ export async function offlineViewerHtml(uri: string) {
   const id = url.pathname.split("/").at(-1)!;
   const module = OFFLINE_MODELS[id];
   if (!module) return null;
-  runtime ??= assetText(require("../../assets/offline/runtime.soma")).catch((error) => { runtime = undefined; throw error; });
-  template ??= assetText(require("../../assets/offline/template.soma")).catch((error) => { template = undefined; throw error; });
-  const [packText, js, html] = await Promise.all([assetText(module), runtime, template]);
+  runtime ??= assetText(require("../../assets/offline/runtime.soma")).catch(
+    (error) => {
+      runtime = undefined;
+      throw error;
+    },
+  );
+  template ??= assetText(require("../../assets/offline/template.soma")).catch(
+    (error) => {
+      template = undefined;
+      throw error;
+    },
+  );
+  const [packText, js, html] = await Promise.all([
+    assetText(module),
+    runtime,
+    template,
+  ]);
   const pack = JSON.parse(packText);
   const inlineAssets: Record<string, string> = {};
-  await Promise.all(Object.entries(pack.buffers as Record<string, string>).map(async ([key, hash]) => {
-    const asset = await Asset.fromModule(OFFLINE_BUFFERS[hash]).downloadAsync();
-    if (!asset.localUri) throw Error("Chưa đọc được mô hình trên thiết bị.");
-    inlineAssets[key] = `data:application/octet-stream;base64,${await new File(asset.localUri).base64()}`;
-  }));
+  await Promise.all(
+    Object.entries(pack.buffers as Record<string, string>).map(
+      async ([key, hash]) => {
+        const asset = await Asset.fromModule(
+          OFFLINE_BUFFERS[hash],
+        ).downloadAsync();
+        if (!asset.localUri)
+          throw Error("Chưa đọc được mô hình trên thiết bị.");
+        inlineAssets[key] =
+          `data:application/octet-stream;base64,${await new File(asset.localUri).base64()}`;
+      },
+    ),
+  );
   if (pack.config.model.kind === "glb") {
-    decoder ??= assetText(require("../../assets/offline/decoder.soma")).then(JSON.parse).catch((error) => { decoder = undefined; throw error; });
+    decoder ??= assetText(require("../../assets/offline/decoder.soma"))
+      .then(JSON.parse)
+      .catch((error) => {
+        decoder = undefined;
+        throw error;
+      });
     Object.assign(inlineAssets, await decoder);
   }
-  const config = { ...pack.config, inlineAssets,
-    dark: url.searchParams.get("theme") === "dark", preview: url.searchParams.get("preview") === "1" };
+  const config = {
+    ...pack.config,
+    inlineAssets,
+    dark: url.searchParams.get("theme") === "dark",
+    preview: url.searchParams.get("preview") === "1",
+  };
   return createOfflineDocument(config, js, html);
 }

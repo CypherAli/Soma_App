@@ -1,4 +1,4 @@
-import type { AtlasSceneDef } from "../../Soma_Fe/src/lib/humanAtlas/scenes/types";
+import type { AtlasSceneDef } from "./shared/sceneTypes";
 import type { AnatomyModel } from "../src/core/types";
 import type {
   ViewerCommand,

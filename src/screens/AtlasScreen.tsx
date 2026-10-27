@@ -52,7 +52,10 @@ export function AtlasScreen() {
     <>
       <Kicker>Thư viện mô hình · Giải phẫu người</Kicker>
       <Title>Atlas</Title>
-      <Body muted style={{ fontSize: 13 }}>{catalogue.models.length} mô hình · Tìm theo cơ quan, cấu trúc hoặc tên Latin</Body>
+      <Body muted style={{ fontSize: 13 }}>
+        {catalogue.models.length} mô hình · Tìm theo cơ quan, cấu trúc hoặc tên
+        Latin
+      </Body>
       <View
         style={{
           flexDirection: "row",
@@ -100,7 +103,11 @@ export function AtlasScreen() {
           </Pressable>
         )}
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 12 }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 8, paddingVertical: 12 }}
+      >
         {["all", ...systems].map((system) => (
           <Pressable
             accessibilityRole="button"

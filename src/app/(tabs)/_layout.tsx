@@ -12,7 +12,9 @@ const items = {
   review: { label: "Ôn tập", icon: "list-outline" },
   profile: { label: "Cá nhân", icon: "person-outline" },
 } as const;
-type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
+type TabBarProps = Parameters<
+  NonNullable<ComponentProps<typeof Tabs>["tabBar"]>
+>[0];
 function TabBar({ state, navigation }: TabBarProps) {
   const t = useTheme(),
     insets = useSafeAreaInsets();
@@ -66,11 +68,22 @@ function TabBar({ state, navigation }: TabBarProps) {
               gap: 4,
             }}
           >
-            <View style={{ width: 44, height: 28, borderRadius: 0, alignItems: "center", justifyContent: "center", backgroundColor: "transparent" }}><Icon
-              name={item.icon}
-              size={21}
-              color={focused ? t.accent : t.muted}
-            /></View>
+            <View
+              style={{
+                width: 44,
+                height: 28,
+                borderRadius: 0,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "transparent",
+              }}
+            >
+              <Icon
+                name={item.icon}
+                size={21}
+                color={focused ? t.accent : t.muted}
+              />
+            </View>
             <Text
               style={{
                 fontSize: 10,

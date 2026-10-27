@@ -31,7 +31,8 @@ yarn-error.*
 *.pem
 
 # local env files
-.env*.local
+.env*
+!.env*.example
 
 # typescript
 *.tsbuildinfo
@@ -43,6 +44,9 @@ yarn-error.*
 # Local builds and QA artifacts
 /builds/
 /qa/
+/coverage/
+/playwright-report/
+/test-results/
 /qa-*.png
 *.log
 .env
