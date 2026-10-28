@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+export { accountKey } from "./identity";
 const queues = new Map<string, Promise<void>>();
 export async function readStored<T>(key: string, fallback: T): Promise<T> {
   const raw = await AsyncStorage.getItem(key);
@@ -21,7 +22,4 @@ export function writeStored(key: string, value: unknown): Promise<void> {
     })
     .catch(() => {});
   return operation;
-}
-export function accountKey(base: string, userId: string) {
-  return `soma.private.v1:${encodeURIComponent(base)}:${userId}`;
 }

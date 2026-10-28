@@ -9,6 +9,7 @@ const checks = [
   "qa-account-api.cjs",
   "qa-account-ui.cjs",
   "qa-desktop-oauth.cjs",
+  "qa-premium.cjs",
   "qa-learning.cjs",
 ];
 for (const script of checks) {

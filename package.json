@@ -1,6 +1,6 @@
 {
   "name": "soma_app",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -85,7 +85,8 @@
     "viewer:build": "node scripts/build-viewer.mjs",
     "viewer:check": "node scripts/build-viewer.mjs --check",
     "prepare:gateway": "node scripts/prepare-gateway.mjs",
-    "audit:security": "node scripts/audit-dependencies.mjs"
+    "audit:security": "node scripts/audit-dependencies.mjs",
+    "qa:premium": "node scripts/qa-premium.cjs"
   },
   "private": true,
   "overrides": {

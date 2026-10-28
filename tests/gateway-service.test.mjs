@@ -41,15 +41,37 @@ test("deployed mobile gateway proxies health and auth while denying private rout
       base + "/api/mobile/models/mat-cat-ngang-bung/file",
     );
     assert.equal(knownModel.status, 200);
+    const checkout = await fetch(base + "/api/membership/checkout", {
+      method: "POST",
+      headers: { Authorization: "Bearer owner-proof" },
+    });
+    assert.equal(checkout.status, 200);
+    assert.equal((await checkout.json()).authorization, "Bearer owner-proof");
+    assert.equal(
+      (await fetch(base + "/api/membership/orders/cqaorder123")).status,
+      200,
+    );
     const before = requests;
     for (const path of [
       "/api/docs",
       "/api/admin/users",
       "/api/documents",
+      "/api/membership/sepay/ipn",
+      "/api/membership/consume",
       "/api/mobile/models/unknown/file",
       "/api/mobile/assets/000000000000000000000000.bin",
     ])
       assert.equal((await fetch(base + path)).status, 404, path);
+    assert.equal(
+      (await fetch(base + "/api/membership/sepay/ipn", { method: "POST" }))
+        .status,
+      404,
+    );
+    assert.equal(
+      (await fetch(base + "/api/membership/consume", { method: "POST" }))
+        .status,
+      404,
+    );
     assert.equal(requests, before, "denied paths never reach the backend");
     assert.equal(
       (

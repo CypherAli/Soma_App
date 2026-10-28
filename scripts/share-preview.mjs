@@ -91,6 +91,7 @@ export function allowed(method, pathname) {
   if (method === "GET" || method === "HEAD")
     return [
       /^\/api\/health$/,
+      /^\/api\/membership(?:\/orders\/[a-zA-Z0-9_-]{1,80})?$/,
       /^\/api\/mobile\/(bootstrap|due|sources|sources\/[a-zA-Z0-9-]+|source-images\/[a-f0-9]{20}\.webp)$/,
       /^\/api\/mobile\/runtime\/(viewer\.js|draco_decoder\.(js|wasm)|draco_wasm_wrapper\.js)$/,
       /^\/api\/mobile\/account(?:\/sessions)?$/,
@@ -100,7 +101,7 @@ export function allowed(method, pathname) {
       /^\/api\/study\/(history|path)$/,
     ].some((pattern) => pattern.test(pathname));
   if (method === "POST")
-    return /^\/api\/(mobile\/(attempts|source-attempts|assistant|account\/password)|auth\/(register|login|logout|forgot-password|mobile\/exchange|mobile\/oauth\/(google|github|facebook)(?:\/link)?))$/.test(
+    return /^\/api\/(membership\/(checkout|orders\/[a-zA-Z0-9_-]{1,80}\/simulate)|mobile\/(attempts|source-attempts|assistant|account\/password)|auth\/(register|login|logout|forgot-password|mobile\/exchange|mobile\/oauth\/(google|github|facebook)(?:\/link)?))$/.test(
       pathname,
     );
   if (method === "PATCH") return pathname === "/api/auth/profile";

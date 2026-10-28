@@ -1,6 +1,7 @@
 import { View } from "react-native";
+import { router } from "expo-router";
 import type { Membership } from "../../core/types";
-import { Body } from "../../ui/components";
+import { Body, Button } from "../../ui/components";
 import { Text, useI18n } from "../../ui/i18n";
 import { useTheme } from "../../ui/theme";
 import { dateText } from "./format";
@@ -69,6 +70,13 @@ export function MembershipSummary({ membership }: { membership: Membership }) {
           {dateText(membership.premiumUntil, language)}
         </Body>
       )}
+      <Button
+        secondary
+        onPress={() => router.push("/premium")}
+        style={{ marginTop: 16 }}
+      >
+        {membership.plan === "pro" ? "Gia hạn Premium" : "Nâng cấp Premium"}
+      </Button>
     </View>
   );
 }

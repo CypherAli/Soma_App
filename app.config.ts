@@ -13,7 +13,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: { supportsTablet: true, bundleIdentifier: "vn.soma.mobile" },
   android: {
     package: "vn.soma.mobile",
-    versionCode: 10,
+    versionCode: 11,
     adaptiveIcon: {
       foregroundImage: "./assets/adaptive-icon.png",
       backgroundColor: "#18232E",
