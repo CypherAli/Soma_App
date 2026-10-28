@@ -26,7 +26,7 @@ for (const key of Object.keys(packages)) {
       assert.throws(() => braces[method](ast), /AST exceeds/);
     checks++;
   }
-  if (name === "node-forge" && version === "1.4.0") {
+  if (name === "node-forge") {
     const forge = require(folder),
       asn1 = forge.asn1;
     const keys = forge.pki.rsa.generateKeyPair({ bits: 1024, e: 65537 });
@@ -52,13 +52,134 @@ for (const key of Object.keys(packages)) {
     assert.throws(() => keys.publicKey.verify(digest, signature), /DigestInfo/);
     checks++;
   }
-  if (name === "decode-uri-component" && version === "0.2.2") {
-    const decode = require(folder);
-    assert.equal(decode("gi%E1%BA%A3i+ph%E1%BA%ABu"), "giải phẫu");
+  if (name === "decode-uri-component") {
+    const module = require(folder),
+      decode = typeof module === "function" ? module : module.default;
+    assert.equal(decode("gi%E1%BA%A3i%20ph%E1%BA%ABu"), "giải phẫu");
     assert.equal(decode("%C2"), "\uFFFD");
     const malformed = "%FF".repeat(1000);
     assert.equal(decode(malformed), malformed);
     assert.equal(decode("%E0%A4%A"), "%E0%A4%A");
+    checks++;
+  }
+  if (name === "deepmerge") {
+    const merge = require(folder),
+      symbol = Symbol("normal data");
+    const source = JSON.parse(
+      '{"__proto__":{"poisoned":true},"constructor":{"prototype":{"poisoned":true}},"prototype":{"poisoned":true},"safe":{"b":2}}',
+    );
+    for (const target of [
+      {},
+      Object.create(null),
+      JSON.parse('{"__proto__":{"poisoned":true},"safe":{"a":1}}'),
+    ]) {
+      const result = merge(target, source);
+      assert.equal(Object.getPrototypeOf(result), Object.prototype);
+      assert.equal(result.poisoned, undefined);
+      assert.equal(Object.prototype.poisoned, undefined);
+      for (const key of ["__proto__", "constructor", "prototype"])
+        assert.equal(Object.hasOwn(result, key), false);
+      assert.equal(result.safe.b, 2);
+    }
+    assert.deepEqual(merge({ items: [1], [symbol]: "kept" }, { items: [2] }), {
+      items: [1, 2],
+      [symbol]: "kept",
+    });
+    checks++;
+  }
+  if (name === "query-string") {
+    const query = require(folder);
+    assert.equal(
+      query.parse("name=gi%E1%BA%A3i+ph%E1%BA%ABu").name,
+      "giải phẫu",
+    );
+    assert.deepEqual(
+      { ...query.parse("tag=a&tag=b&empty=") },
+      { empty: "", tag: ["a", "b"] },
+    );
+    assert.match(query.stringify({ name: "giải phẫu" }), /name=/);
+    checks++;
+  }
+  if (name === "zod") {
+    const { z } = require(folder);
+    const result = z
+      .array(z.string())
+      .max(2)
+      .safeParse(Array(50000).fill({ invalid: true }));
+    assert.equal(result.success, false);
+    assert.equal(
+      result.error.issues.length,
+      1,
+      "Oversized collections fail before collecting element errors",
+    );
+    assert.equal(
+      z
+        .object({ name: z.string(), count: z.number() })
+        .safeParse({ name: "Soma", count: 2 }).success,
+      true,
+    );
+    checks++;
+  }
+  if (name === "@expo/cli") {
+    const { PluginSchema, DevToolsPluginOutputSchema } = require(
+      path.join(folder, "build/src/start/server/DevToolsPlugin.schema.js"),
+    );
+    const { createMCPDevToolsExtensionSchema } = require(
+      path.join(
+        folder,
+        "build/src/start/server/createMCPDevToolsExtensionSchema.js",
+      ),
+    );
+    const plugin = {
+      packageName: "soma-qa",
+      packageRoot: root,
+      cliExtensions: {
+        description: "QA",
+        entryPoint: "index.js",
+        commands: [
+          {
+            name: "inspect",
+            title: "Inspect",
+            environments: ["cli", "mcp"],
+            parameters: [
+              { name: "name", type: "text" },
+              { name: "count", type: "number" },
+              { name: "confirm", type: "confirm" },
+            ],
+          },
+        ],
+      },
+    };
+    assert.equal(PluginSchema.safeParse(plugin).success, true);
+    assert.equal(
+      PluginSchema.safeParse({ ...plugin, packageName: "" }).success,
+      false,
+    );
+    assert.equal(
+      DevToolsPluginOutputSchema.safeParse([
+        { type: "text", text: "Soma", level: "info" },
+      ]).success,
+      true,
+    );
+    const schema = createMCPDevToolsExtensionSchema(plugin);
+    assert.equal(
+      schema.safeParse({
+        command: "inspect",
+        name: "Atlas",
+        count: 2,
+        confirm: true,
+      }).success,
+      true,
+    );
+    assert.equal(schema.safeParse({ command: "unknown" }).success, false);
+    assert.equal(
+      schema.safeParse({ command: "inspect", count: "wrong type" }).success,
+      false,
+    );
+    assert.equal(
+      schema.safeParse({ command: "inspect", extra: "unexpected" }).success,
+      false,
+    );
     checks++;
   }
   if (name === "sprintf-js" && version === "1.0.3") {

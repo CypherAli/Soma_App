@@ -1,4 +1,5 @@
 import http from "node:http";
+import https from "node:https";
 import { createReadStream, readFileSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -6,6 +7,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream/promises";
 import { gatewayTimeout } from "./lib/gateway-policy.mjs";
+import { gatewayConfig } from "./lib/gateway-config.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const version = JSON.parse(
@@ -15,7 +17,22 @@ const apk = resolve(
   process.env.SOMA_SHARE_APK ||
     resolve(root, `builds/soma-${version}-preview.apk`),
 );
-const upstream = new URL("http://127.0.0.1:4000");
+const config = gatewayConfig(process.env, root);
+const { upstream } = config;
+const transport = upstream.protocol === "https:" ? https : http;
+let manifest;
+try {
+  manifest = JSON.parse(readFileSync(config.manifest, "utf8"));
+  if (
+    !Array.isArray(manifest.models) ||
+    !manifest.models.length ||
+    !manifest.assets
+  )
+    throw Error("Invalid mobile allowlist.");
+} catch (error) {
+  if (process.env.NODE_ENV === "production") throw error;
+  manifest = { models: [], assets: {} };
+}
 const webOrigins = new Set([
   "http://localhost:8081",
   "http://127.0.0.1:8081",
@@ -66,25 +83,14 @@ export function allowed(method, pathname) {
       /^\/api\/mobile\/(?:models\/([a-z0-9-]+)\/file|viewer\/([a-z0-9-]+)|assets\/([a-f0-9]{24}\.[a-z0-9]+))$/,
     );
     if (match) {
-      try {
-        const manifest = JSON.parse(
-          readFileSync(
-            resolve(root, "../soma_be/resources/mobile/manifest.json"),
-            "utf8",
-          ),
-        );
-        return match[3]
-          ? Object.hasOwn(manifest.assets ?? {}, match[3])
-          : manifest.models.some(
-              (model) => model.id === (match[1] || match[2]),
-            );
-      } catch {
-        return false;
-      }
+      return match[3]
+        ? Object.hasOwn(manifest.assets ?? {}, match[3])
+        : manifest.models.some((model) => model.id === (match[1] || match[2]));
     }
   }
   if (method === "GET" || method === "HEAD")
     return [
+      /^\/api\/health$/,
       /^\/api\/mobile\/(bootstrap|due|sources|sources\/[a-zA-Z0-9-]+|source-images\/[a-f0-9]{20}\.webp)$/,
       /^\/api\/mobile\/runtime\/(viewer\.js|draco_decoder\.(js|wasm)|draco_wasm_wrapper\.js)$/,
       /^\/api\/mobile\/account(?:\/sessions)?$/,
@@ -267,7 +273,7 @@ const server = http.createServer(async (req, res) => {
     const headers = {};
     for (const key of ["authorization", "content-type", "accept", "user-agent"])
       if (req.headers[key]) headers[key] = req.headers[key];
-    const request = http.request(
+    const request = transport.request(
       new URL(url.pathname + url.search, upstream),
       { method: req.method, headers, timeout: gatewayTimeout(url.pathname) },
       (response) => {
@@ -315,6 +321,6 @@ if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 )
-  server.listen(8083, "127.0.0.1", () =>
-    console.log("Mobile-only share gateway: http://127.0.0.1:8083"),
+  server.listen(config.port, config.host, () =>
+    console.log(`Mobile-only share gateway listening on port ${config.port}`),
   );

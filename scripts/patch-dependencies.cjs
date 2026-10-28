@@ -23,6 +23,29 @@ for (const key of Object.keys(packages)) {
   const { name, version } = JSON.parse(
     fs.readFileSync(path.join(folder, "package.json"), "utf8"),
   );
+  if (name === "query-string" && version === "7.1.3") {
+    // decode-uri-component 0.5+ is patched upstream and ESM-only.
+    patch(
+      path.join(folder, "index.js"),
+      "const decodeComponent = require('decode-uri-component');",
+      "// SOMA compatibility: support the patched ESM decoder from CommonJS and Metro.\nconst decoderModule = require('decode-uri-component');\nconst decodeComponent = typeof decoderModule === 'function' ? decoderModule : decoderModule.default;",
+      "SOMA compatibility: support the patched ESM decoder",
+    );
+  }
+  if (name === "deepmerge" && version === "4.3.1") {
+    // GHSA-gcqx-w48m-w2h4: protect writes copied from both target and source,
+    // including null-prototype targets. Keep enumerable symbols intact.
+    for (const relative of ["index.js", "dist/cjs.js", "dist/umd.js"]) {
+      const file = path.join(folder, relative);
+      if (fs.existsSync(file))
+        patch(
+          file,
+          "return Object.keys(target).concat(getEnumerableOwnPropertySymbols(target))",
+          "// SOMA security: filter prototype-sensitive keys before any destination writes.\n\treturn Object.keys(target).concat(getEnumerableOwnPropertySymbols(target)).filter(function(key) { return key !== '__proto__' && key !== 'constructor' && key !== 'prototype' })",
+          "SOMA security: filter prototype-sensitive keys",
+        );
+    }
+  }
   if (name === "braces" && version === "3.0.3") {
     // GHSA-vfj7-8cjw-p6xm: reject deep input before AST parsing and recursive walkers.
     patch(
