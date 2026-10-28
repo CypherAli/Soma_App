@@ -112,6 +112,6 @@ export function parsePremiumOrder(
     bank: text("bank"),
     account: text("account"),
     holder: text("holder"),
-    transferContent: text("transferContent") || `Premium soma ${data.code}`,
+    transferContent: text("transferContent") || `PREMIUM ${data.code}`,
   };
 }

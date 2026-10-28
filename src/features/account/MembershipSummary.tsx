@@ -6,7 +6,13 @@ import { Text, useI18n } from "../../ui/i18n";
 import { useTheme } from "../../ui/theme";
 import { dateText } from "./format";
 
-export function MembershipSummary({ membership }: { membership: Membership }) {
+export function MembershipSummary({
+  membership,
+  onRefresh,
+}: {
+  membership: Membership;
+  onRefresh: () => void;
+}) {
   const t = useTheme(),
     { language } = useI18n();
   return (
@@ -70,6 +76,9 @@ export function MembershipSummary({ membership }: { membership: Membership }) {
           {dateText(membership.premiumUntil, language)}
         </Body>
       )}
+      <Button secondary onPress={onRefresh} style={{ marginTop: 16 }}>
+        Làm mới gói tài khoản
+      </Button>
       <Button
         secondary
         onPress={() => router.push("/premium")}

@@ -15,6 +15,17 @@ const pending = {
 test("Premium accepts authenticated order states and isolates pending records by account, API and environment", () => {
   assert.equal(parsePremiumOrder(pending, false).status, "pending");
   assert.equal(
+    parsePremiumOrder(pending, false).transferContent,
+    `PREMIUM ${pending.code}`,
+  );
+  assert.equal(
+    parsePremiumOrder(
+      { ...pending, transferContent: "PAY_PROVIDER_123" },
+      false,
+    ).transferContent,
+    "PAY_PROVIDER_123",
+  );
+  assert.equal(
     parsePremiumOrder({ ...pending, status: "paid" }, false).status,
     "paid",
   );

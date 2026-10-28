@@ -326,5 +326,6 @@
   "Tải lại đơn thanh toán": "Reload payment order",
   "Đơn được lưu theo tài khoản. Đóng app hoặc quay lại sau sẽ tiếp tục đơn đang chờ.": "Orders are saved to your account. Reopen the app to resume a pending order.",
   "Đơn thanh toán không hợp lệ hoặc thuộc môi trường khác. Vui lòng thử lại.": "The payment order is invalid or belongs to another environment. Please retry.",
-  "Thông tin thanh toán không khớp đơn hàng.": "Payment details do not match the order."
+  "Thông tin thanh toán không khớp đơn hàng.": "Payment details do not match the order.",
+  "Làm mới gói tài khoản": "Refresh membership"
 }

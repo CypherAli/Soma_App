@@ -223,7 +223,10 @@ export function ProfileDetails() {
         />
       </View>
       {overview.data ? (
-        <MembershipSummary membership={overview.data.membership} />
+        <MembershipSummary
+          membership={overview.data.membership}
+          onRefresh={overview.reload}
+        />
       ) : (
         <ErrorText message={overview.error} />
       )}

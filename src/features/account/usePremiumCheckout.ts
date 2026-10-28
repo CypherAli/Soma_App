@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { useApp } from "../../core/AppProvider";
 import { ApiError, errorMessage } from "../../core/api";
+import { isForeground, onForeground } from "../../core/foreground";
 import {
   parsePremiumOrder,
   premiumStorageKey,
@@ -22,10 +22,11 @@ export function usePremiumCheckout() {
     action = useRef(false),
     mode = useRef<boolean | null>(null);
   const latest = useRef<PremiumOrder | null>(null);
+  const userId = user?.id;
   const key = useCallback(
     (sandbox: boolean) =>
-      premiumStorageKey(preferences.apiUrl, user!.id, sandbox),
-    [preferences.apiUrl, user],
+      premiumStorageKey(preferences.apiUrl, userId!, sandbox),
+    [preferences.apiUrl, userId],
   );
   useEffect(() => {
     alive.current = true;
@@ -100,6 +101,7 @@ export function usePremiumCheckout() {
         }
       })();
       return () => abort.abort();
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- Explicit retry restarts this focused load.
     }, [request, key, confirm, reloadTick]),
   );
 
@@ -124,17 +126,14 @@ export function usePremiumCheckout() {
     useCallback(() => {
       if (order?.status !== "pending") return;
       const timer = setInterval(() => {
-        if (!AppState.currentState || AppState.currentState === "active")
-          void check();
+        if (isForeground()) void check();
       }, 4000);
-      const listener = AppState.addEventListener("change", (state) => {
-        if (state === "active") void check();
-      });
+      const unsubscribe = onForeground(() => void check());
       return () => {
         clearInterval(timer);
-        listener.remove();
+        unsubscribe();
       };
-    }, [order?.id, order?.status, check]),
+    }, [order?.status, check]),
   );
 
   async function start() {

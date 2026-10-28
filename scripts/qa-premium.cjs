@@ -40,7 +40,7 @@ const api = "http://127.0.0.1:8083/api",
     const row = "qaorder-" + randomUUID(),
       code = "SOMA" + randomBytes(8).toString("hex").toUpperCase();
     await db.query(
-      "INSERT INTO premium_orders (id, code, \"userId\", amount, status, provider) VALUES ($1,$2,$3,25000,'pending','sepay-production')",
+      "INSERT INTO premium_orders (id, code, \"userId\", amount, status, provider) VALUES ($1,$2,$3,25000,'pending','bank-webhook')",
       [row, code, accounts[0].user.id],
     );
     for (const [token, expected] of [
@@ -208,6 +208,57 @@ const api = "http://127.0.0.1:8083/api",
       await page.goto(origin + target, { waitUntil: "domcontentloaded" });
     }
     await login(0);
+    await page
+      .getByRole("button", { name: "Nâng cấp Premium", exact: true })
+      .waitFor();
+    state[0].pro = true;
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await page
+      .getByRole("button", { name: "Gia hạn Premium", exact: true })
+      .waitFor({ timeout: 3000 });
+    state[0].pro = false;
+    await page
+      .getByRole("button", { name: "Làm mới gói tài khoản", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Nâng cấp Premium", exact: true })
+      .waitFor();
+    // Reproduce the laptop phone frame: focus returns to the OUTER window only.
+    await page.route(origin + "/qa-foreground-frame", (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: '<iframe title="QA phone" src="/profile" style="width:390px;height:844px"></iframe>',
+      }),
+    );
+    await page.goto(origin + "/qa-foreground-frame");
+    const phone = page.frameLocator('iframe[title="QA phone"]');
+    await phone
+      .getByRole("button", { name: "Nâng cấp Premium", exact: true })
+      .waitFor();
+    state[0].pro = true;
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await phone
+      .getByRole("button", { name: "Gia hạn Premium", exact: true })
+      .waitFor({ timeout: 3000 });
+    state[0].pro = false;
+    await page.goto(origin + "/profile");
+    await page
+      .getByRole("button", { name: "Nâng cấp Premium", exact: true })
+      .waitFor();
+    state[0].pro = true;
+    await page
+      .getByRole("button", { name: "Gia hạn Premium", exact: true })
+      .waitFor({ timeout: 15000 });
+    state[0].pro = false;
+    await page
+      .getByRole("button", { name: "Làm mới gói tài khoản", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Nâng cấp Premium", exact: true })
+      .waitFor();
+    checks.push(
+      "Account plan refreshes on bank-window return, outer phone-frame focus, periodic foreground sync and manual refresh without navigation",
+    );
     await page
       .getByRole("button", { name: "Nâng cấp Premium", exact: true })
       .click();
