@@ -57,6 +57,7 @@ export async function apiRequest<T>(
   try {
     const response = await fetch(base + path, {
       method: options.method ?? "GET",
+      cache: "no-store",
       headers: {
         Accept: "application/json",
         ...(options.body !== undefined

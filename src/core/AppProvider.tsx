@@ -378,11 +378,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const listener = AppState.addEventListener("change", (state) => {
       if (state === "active" && !booting) {
         void refreshStudy();
-        if (authRef.current) void request("/auth/me").catch(() => {});
+        if (authRef.current) void refreshAccount().catch(() => {});
       }
     });
     return () => listener.remove();
-  }, [booting, refreshStudy, request]);
+  }, [booting, refreshStudy, refreshAccount]);
 
   const mutatePrivate = useCallback(
     async (transform: (previous: PrivateData) => PrivateData) => {
