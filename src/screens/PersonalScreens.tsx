@@ -1,8 +1,12 @@
+import { Text } from "../ui/i18n";
 import { useState } from "react";
-import { Platform, Text, View } from "react-native";
+import { Platform, View } from "react-native";
 import { router } from "expo-router";
 import { useApp } from "../core/AppProvider";
-import { errorMessage } from "../core/api";
+import { apiRequest, errorMessage, normalizeApiUrl } from "../core/api";
+import Constants from "expo-constants";
+import { version } from "../../package.json";
+import { socialReturnUrl } from "../core/socialLogin";
 import { SYSTEM_NAMES } from "../core/types";
 import {
   Body,
@@ -15,6 +19,7 @@ import {
   Kicker,
   Loading,
   ModelRow,
+  MenuRow,
   Page,
   SignInPrompt,
   Title,
@@ -125,7 +130,11 @@ export function HistoryScreen() {
                     }}
                   >
                     <Text style={{ fontSize: 14, color: t.ink, flex: 1 }}>
-                      {SYSTEM_NAMES[attempt.scope] ?? attempt.scope}
+                      {attempt.source === "dr-lam"
+                        ? "Đề ôn tập giải phẫu"
+                        : attempt.source === "personal"
+                          ? "Tài liệu cá nhân"
+                          : (SYSTEM_NAMES[attempt.scope] ?? attempt.scope)}
                     </Text>
                     <Text
                       style={{ fontSize: 15, fontWeight: "600", color: t.ink }}
@@ -139,7 +148,11 @@ export function HistoryScreen() {
                       ? "Atlas"
                       : attempt.source === "book"
                         ? "Giáo trình"
-                        : attempt.source}
+                        : attempt.source === "dr-lam"
+                          ? "Đề ôn tập"
+                          : attempt.source === "personal"
+                            ? "Tài liệu cá nhân"
+                            : attempt.source}
                   </Body>
                 </View>
               ))}
@@ -151,77 +164,81 @@ export function HistoryScreen() {
   );
 }
 
-export function AccountScreen() {
-  const app = useApp();
-  const [name, setName] = useState(app.user?.name ?? ""),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState<string | null>(null),
-    [saved, setSaved] = useState(false);
-  if (!app.user)
-    return (
-      <Page back="Cá nhân">
-        <SignInPrompt next="profile" />
-      </Page>
-    );
-  return (
-    <Page back="Cá nhân">
-      <Title>Thông tin tài khoản</Title>
-      <Field
-        label="Họ và tên"
-        accessibilityLabel="Họ và tên"
-        value={name}
-        onChangeText={setName}
-        maxLength={80}
-      />
-      <Body muted style={{ fontSize: 13, marginVertical: 15 }}>
-        {app.user.email}
-      </Body>
-      <ErrorText message={error} />
-      {saved && (
-        <Body style={{ fontSize: 13, marginBottom: 15 }}>
-          Đã cập nhật tên hiển thị.
-        </Body>
-      )}
-      <Button
-        loading={busy}
-        onPress={() => {
-          setBusy(true);
-          setError(null);
-          setSaved(false);
-          void (async () => {
-            if (name.trim().length < 2)
-              throw new Error("Họ tên cần có ít nhất 2 ký tự.");
-            await app.updateProfile(name);
-            setSaved(true);
-          })()
-            .catch((e) => setError(errorMessage(e)))
-            .finally(() => setBusy(false));
-        }}
-      >
-        Lưu thông tin
-      </Button>
-    </Page>
-  );
-}
-
 export function SettingsScreen() {
   const app = useApp();
   const [apiUrl, setApiUrl] = useState(app.preferences.apiUrl),
-    [appearance, setAppearance] = useState(app.preferences.appearance),
     [busy, setBusy] = useState(false),
     [error, setError] = useState<string | null>(null),
     [saved, setSaved] = useState(false);
+  const [checking, setChecking] = useState(false),
+    [connection, setConnection] = useState<string | null>(null);
+  const appearance = app.preferences.appearance;
+  async function checkConnection() {
+    setChecking(true);
+    setError(null);
+    setConnection(null);
+    try {
+      const base = normalizeApiUrl(
+        apiUrl,
+        __DEV__ || Constants.expoConfig?.extra?.allowHttp === true,
+      );
+      const [catalogue, auth] = await Promise.all([
+        apiRequest<{ schemaVersion: number; models: unknown[] }>(
+          base,
+          "/mobile/bootstrap",
+          { timeoutMs: 6000 },
+        ),
+        apiRequest<{ mobileOAuth: boolean; oauth: { google?: boolean } }>(
+          base,
+          `/auth/mobile/capabilities?returnUrl=${encodeURIComponent(socialReturnUrl())}`,
+          { timeoutMs: 6000 },
+        ),
+      ]);
+      if (catalogue.schemaVersion !== 2 || !Array.isArray(catalogue.models))
+        throw Error("Máy chủ cần cập nhật dữ liệu ứng dụng.");
+      setConnection(
+        `Đã kết nối · ${catalogue.models.length} mô hình\nEmail: sẵn sàng · Google: ${auth.mobileOAuth && auth.oauth.google ? "đã cấu hình" : "chưa được bật"}`,
+      );
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setChecking(false);
+    }
+  }
   return (
     <Page back="Cá nhân">
       <Title>Cài đặt</Title>
       <Choice
         label="Giao diện"
         value={appearance}
-        onChange={(value) => setAppearance(value as typeof appearance)}
+        onChange={(value) =>
+          void app
+            .updatePreferences({
+              ...app.preferences,
+              appearance: value as typeof appearance,
+            })
+            .catch((e) => setError(errorMessage(e)))
+        }
         options={[
           { value: "system", label: "Theo hệ thống" },
           { value: "light", label: "Sáng" },
           { value: "dark", label: "Tối" },
+        ]}
+      />
+      <Choice
+        label="Ngôn ngữ"
+        value={app.preferences.language ?? "vi"}
+        onChange={(value) =>
+          void app
+            .updatePreferences({
+              ...app.preferences,
+              language: value as "vi" | "en",
+            })
+            .catch((e) => setError(errorMessage(e)))
+        }
+        options={[
+          { value: "vi", label: "Tiếng Việt" },
+          { value: "en", label: "English" },
         ]}
       />
       <Heading>Kết nối máy chủ</Heading>
@@ -229,7 +246,11 @@ export function SettingsScreen() {
         label="Địa chỉ API"
         accessibilityLabel="Địa chỉ API"
         value={apiUrl}
-        onChangeText={setApiUrl}
+        onChangeText={(value) => {
+          setApiUrl(value);
+          setConnection(null);
+          setSaved(false);
+        }}
         autoCapitalize="none"
         autoCorrect={false}
         keyboardType="url"
@@ -239,6 +260,17 @@ export function SettingsScreen() {
         đăng xuất tài khoản hiện tại.
       </Body>
       <ErrorText message={error} />
+      <Button
+        secondary
+        loading={checking}
+        onPress={() => void checkConnection()}
+        style={{ marginTop: 16 }}
+      >
+        Kiểm tra kết nối
+      </Button>
+      {connection && (
+        <Body style={{ fontSize: 13, marginTop: 12 }}>{connection}</Body>
+      )}
       {saved && (
         <Body style={{ fontSize: 13, marginVertical: 15 }}>
           Đã lưu cài đặt.
@@ -252,7 +284,7 @@ export function SettingsScreen() {
           setError(null);
           setSaved(false);
           void app
-            .updatePreferences({ apiUrl, appearance })
+            .updatePreferences({ ...app.preferences, apiUrl, appearance })
             .then(() => setSaved(true))
             .catch((e) => setError(errorMessage(e)))
             .finally(() => setBusy(false));
@@ -262,12 +294,26 @@ export function SettingsScreen() {
       </Button>
       <Heading>Thông tin</Heading>
       <Body muted style={{ fontSize: 13 }}>
-        Soma Mobile 1.0 ·{" "}
-        {Platform.OS === "web" ? "Bản xem trên trình duyệt" : "Android"}
+        Soma Mobile {Constants.expoConfig?.version ?? version} ·{" "}
+        {Platform.OS === "web"
+          ? "Bản xem trên trình duyệt"
+          : Platform.OS === "ios"
+            ? "iOS"
+            : "Android"}
         {Platform.OS === "web"
           ? "\nPhiên đăng nhập trên trình duyệt chỉ giữ trong bộ nhớ của tab."
           : ""}
       </Body>
+      <MenuRow
+        label="Điều khoản sử dụng"
+        icon="document-text-outline"
+        onPress={() => router.push("/terms")}
+      />
+      <MenuRow
+        label="Chính sách bảo mật"
+        icon="shield-checkmark-outline"
+        onPress={() => router.push("/privacy")}
+      />
     </Page>
   );
 }
@@ -279,8 +325,10 @@ export function SourcesScreen() {
       <Title>Nguồn dữ liệu</Title>
       <Heading>Mô hình giải phẫu</Heading>
       <Body muted>
-        Z-Anatomy, dẫn xuất từ BodyParts3D. Giấy phép CC-BY-SA. Các mô hình
-        trong app được lấy từ cùng tài nguyên của Soma trên web.
+        Atlas BodyParts3D 4.0 © The Database Center for Life Science, CC BY 4.0.
+        Các cảnh GLB dùng Z-Anatomy / BodyParts3D, giữ ghi công và giấy phép
+        CC-BY-SA của nguồn. Dữ liệu trong app dùng cùng tài nguyên với Soma trên
+        web.
       </Body>
       <Heading>Thuật ngữ và nội dung</Heading>
       <Body muted>

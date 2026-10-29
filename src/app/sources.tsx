@@ -1,1 +1,1 @@
-export { SourcesScreen as default } from "../screens/PersonalScreens";
+export { SourceQuizScreen as default } from "../screens/SourceQuizScreen";

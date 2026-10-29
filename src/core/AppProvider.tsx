@@ -14,6 +14,8 @@ import { apiRequest, ApiError, errorMessage, normalizeApiUrl } from "./api";
 import { readCredential, writeCredential } from "./credentials";
 import { accountKey, readStored, writeStored } from "./storage";
 import { selectQuestions, submissionOf } from "./practice";
+import { expoApiHost, startupApi } from "./server";
+import bundledCatalogue from "../../assets/offline/catalogue.json";
 import type {
   Attempt,
   AuthResponse,
@@ -22,6 +24,7 @@ import type {
   Draft,
   History,
   PlanInput,
+  ProfilePatch,
   Preferences,
   PrivateData,
   StudyPath,
@@ -32,27 +35,25 @@ const EMPTY_PRIVATE: PrivateData = { saved: [], draft: null };
 const allowHttp = __DEV__ || Constants.expoConfig?.extra?.allowHttp === true;
 function defaultApi() {
   const configured =
-    Constants.expoConfig?.extra?.apiUrl || process.env.EXPO_PUBLIC_API_URL;
+    Platform.OS === "web"
+      ? process.env.EXPO_PUBLIC_API_URL || Constants.expoConfig?.extra?.apiUrl
+      : Constants.expoConfig?.extra?.apiUrl || process.env.EXPO_PUBLIC_API_URL;
   if (configured) return normalizeApiUrl(configured, allowHttp);
   if (!allowHttp) return "";
   if (Platform.OS === "web")
     return `http://${globalThis.location?.hostname || "localhost"}:4000/api`;
-  const host = Constants.expoConfig?.hostUri?.split(":")[0];
-  return `http://${host && host !== "localhost" ? host : "10.0.2.2"}:4000/api`;
+  return expoApiHost(Constants.expoConfig?.hostUri);
 }
 const DEFAULT_PREFERENCES: Preferences = {
   apiUrl: defaultApi(),
   appearance: "system",
+  language: "vi",
 };
-const PUBLIC_EMPTY: Catalogue = {
-  schemaVersion: 1,
-  version: "",
-  models: [],
-  questions: [],
-};
+const PUBLIC_EMPTY = bundledCatalogue as Catalogue;
 
 interface AppContext {
   booting: boolean;
+  restoringSession: boolean;
   user: User | null;
   preferences: Preferences;
   catalogue: Catalogue;
@@ -68,10 +69,20 @@ interface AppContext {
   studyError: string | null;
   request: <T>(
     path: string,
-    options?: { method?: string; body?: unknown; auth?: boolean },
+    options?: {
+      method?: string;
+      body?: unknown;
+      auth?: boolean;
+      signal?: AbortSignal;
+      timeoutMs?: number;
+    },
   ) => Promise<T>;
   login: (email: string, password: string, name?: string) => Promise<void>;
-  acceptSession: (result: AuthResponse, base: string) => Promise<void>;
+  acceptSession: (
+    result: AuthResponse,
+    base: string,
+    expectedOwner?: string,
+  ) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   refreshStudy: () => Promise<void>;
@@ -86,13 +97,15 @@ interface AppContext {
   }) => Promise<void>;
   submitDraft: () => Promise<Attempt>;
   savePlan: (input: PlanInput) => Promise<void>;
-  updateProfile: (name: string) => Promise<void>;
+  updateProfile: (patch: string | ProfilePatch) => Promise<void>;
+  refreshAccount: () => Promise<void>;
 }
 const Context = createContext<AppContext | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [booting, setBooting] = useState(true),
     [preferences, setPreferences] = useState(DEFAULT_PREFERENCES);
+  const [restoringSession, setRestoringSession] = useState(true);
   const [user, setUser] = useState<User | null>(null),
     [credential, setCredential] = useState<Credential | null>(null);
   const [catalogue, setCatalogue] = useState(PUBLIC_EMPTY),
@@ -111,6 +124,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     scopeRef = useRef("");
   const submitRef = useRef<Promise<Attempt> | null>(null);
   const alive = useRef(true);
+  const sessionRevision = useRef(0);
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -118,6 +132,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
   const clearAccount = useCallback(() => {
+    sessionRevision.current++;
     authRef.current = null;
     setCredential(null);
     setUser(null);
@@ -136,7 +151,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const request = useCallback(
     async <T,>(
       path: string,
-      options: { method?: string; body?: unknown; auth?: boolean } = {},
+      options: {
+        method?: string;
+        body?: unknown;
+        auth?: boolean;
+        signal?: AbortSignal;
+        timeoutMs?: number;
+      } = {},
     ): Promise<T> => {
       const token = options.auth === false ? undefined : authRef.current?.token;
       try {
@@ -163,19 +184,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [clearAccount],
   );
 
+  const refreshAccount = useCallback(async () => {
+    const token = authRef.current?.token;
+    if (!token) return;
+    const result = await request<{ user: User }>("/auth/me");
+    if (token === authRef.current?.token) setUser(result.user);
+  }, [request]);
   const refreshCatalogue = useCallback(async () => {
     const base = baseRef.current;
     try {
       const data = await apiRequest<Catalogue>(base, "/mobile/bootstrap");
       if (
-        data.schemaVersion !== 1 ||
+        data.schemaVersion !== 2 ||
         !Array.isArray(data.models) ||
         !Array.isArray(data.questions)
       )
-        throw new Error("Phiên bản dữ liệu chưa được app hỗ trợ.");
+        throw new Error(
+          "Thư viện máy chủ cần cập nhật để app có thể xem chi tiết và tách mô hình.",
+        );
       if (base !== baseRef.current || !alive.current) return;
       setCatalogue(data);
       setOffline(false);
+      setNotice(null);
       await writeStored(
         `soma.catalogue:${encodeURIComponent(base)}`,
         data,
@@ -216,26 +246,50 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
+      const restoreRevision = sessionRevision.current;
       try {
         const prefs = await readStored<Preferences>(
           "soma.preferences.v1",
           DEFAULT_PREFERENCES,
         );
-        const apiUrl = normalizeApiUrl(prefs.apiUrl, allowHttp);
+        const apiUrl = startupApi(prefs.apiUrl, DEFAULT_PREFERENCES.apiUrl, {
+          development: __DEV__,
+          allowHttp,
+          bundledDefault: prefs.bundledApiUrl,
+          previousDefaults: [
+            "https://painted-suppose-bennett-fantasy.trycloudflare.com/api",
+          ],
+        });
         if (cancelled) return;
         baseRef.current = apiUrl;
-        setPreferences({ ...prefs, apiUrl });
+        setPreferences({
+          ...DEFAULT_PREFERENCES,
+          ...prefs,
+          language: prefs.language === "en" ? "en" : "vi",
+          apiUrl,
+          bundledApiUrl: DEFAULT_PREFERENCES.apiUrl,
+        });
+        await writeStored("soma.preferences.v1", {
+          ...DEFAULT_PREFERENCES,
+          ...prefs,
+          apiUrl,
+          bundledApiUrl: DEFAULT_PREFERENCES.apiUrl,
+        });
         const cached = await readStored<Catalogue>(
           `soma.catalogue:${encodeURIComponent(apiUrl)}`,
           PUBLIC_EMPTY,
         );
+        if (cancelled) return;
         if (
           !cancelled &&
-          cached.schemaVersion === 1 &&
+          cached.schemaVersion === 2 &&
           Array.isArray(cached.models) &&
           Array.isArray(cached.questions)
         )
           setCatalogue(cached);
+        // Public content renders immediately; validating a saved session is background work.
+        setBooting(false);
+        void refreshCatalogue();
         const saved = await readCredential();
         if (
           saved &&
@@ -248,13 +302,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const me = await apiRequest<{ user: User }>(apiUrl, "/auth/me", {
               token: saved.token,
             });
-            if (!cancelled) {
+            if (
+              !cancelled &&
+              restoreRevision === sessionRevision.current &&
+              apiUrl === baseRef.current
+            ) {
               authRef.current = saved;
               setCredential(saved);
               setUser(me.user);
               void refreshStudy();
             }
           } catch (error) {
+            if (
+              cancelled ||
+              restoreRevision !== sessionRevision.current ||
+              apiUrl !== baseRef.current
+            )
+              return;
             if (error instanceof ApiError && error.status === 401)
               await writeCredential(null);
             else if (!cancelled)
@@ -262,20 +326,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 "Chưa xác minh được phiên đăng nhập. Kiểm tra kết nối rồi đăng nhập lại.",
               );
           }
-        } else if (saved) await writeCredential(null);
+        } else if (
+          saved &&
+          !cancelled &&
+          restoreRevision === sessionRevision.current &&
+          apiUrl === baseRef.current
+        )
+          await writeCredential(null);
       } catch (error) {
         if (!cancelled) setNotice(errorMessage(error));
       } finally {
         if (!cancelled) {
           setBooting(false);
-          void refreshCatalogue();
+          setRestoringSession(false);
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [refreshCatalogue, refreshStudy]);
+  }, [refreshCatalogue, refreshStudy, refreshAccount]);
 
   useEffect(() => {
     if (booting) return;
@@ -308,11 +378,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const listener = AppState.addEventListener("change", (state) => {
       if (state === "active" && !booting) {
         void refreshStudy();
-        if (authRef.current) void request("/auth/me").catch(() => {});
+        if (authRef.current) void refreshAccount().catch(() => {});
       }
     });
     return () => listener.remove();
-  }, [booting, refreshStudy, request]);
+  }, [booting, refreshStudy, refreshAccount]);
 
   const mutatePrivate = useCallback(
     async (transform: (previous: PrivateData) => PrivateData) => {
@@ -334,7 +404,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const acceptSession = useCallback(
-    async (result: AuthResponse, base: string) => {
+    async (result: AuthResponse, base: string, expectedOwner?: string) => {
+      if (
+        expectedOwner &&
+        (authRef.current?.userId !== expectedOwner ||
+          result.user.id !== expectedOwner)
+      )
+        throw new Error(
+          "Tài khoản đã thay đổi. Vui lòng thực hiện liên kết lại.",
+        );
+      const revision = sessionRevision.current;
       if (base !== baseRef.current)
         throw new Error("Địa chỉ máy chủ đã thay đổi. Vui lòng đăng nhập lại.");
       const next = {
@@ -344,6 +423,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         apiUrl: base,
       };
       await writeCredential(next);
+      if (revision !== sessionRevision.current || base !== baseRef.current) {
+        await writeCredential(authRef.current);
+        throw new Error("Phiên đã thay đổi. Vui lòng thử lại.");
+      }
       clearAccount();
       authRef.current = next;
       setCredential(next);
@@ -491,22 +574,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [refreshStudy, request],
   );
   const updateProfile = useCallback(
-    async (name: string) => {
+    async (patch: string | ProfilePatch) => {
       const token = authRef.current?.token;
       const result = await request<{ user: User }>("/auth/profile", {
         method: "PATCH",
-        body: { name: name.trim() },
+        body: typeof patch === "string" ? { name: patch.trim() } : patch,
       });
       if (token === authRef.current?.token) setUser(result.user);
     },
     [request],
   );
   const refresh = useCallback(async () => {
-    await Promise.all([refreshCatalogue(), refreshStudy()]);
-  }, [refreshCatalogue, refreshStudy]);
+    await Promise.all([refreshCatalogue(), refreshStudy(), refreshAccount()]);
+  }, [refreshCatalogue, refreshStudy, refreshAccount]);
   const value = useMemo<AppContext>(
     () => ({
       booting,
+      restoringSession,
       user,
       preferences,
       catalogue,
@@ -533,9 +617,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       submitDraft,
       savePlan,
       updateProfile,
+      refreshAccount,
     }),
     [
       booting,
+      restoringSession,
       user,
       preferences,
       catalogue,
@@ -561,6 +647,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       submitDraft,
       savePlan,
       updateProfile,
+      refreshAccount,
     ],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;

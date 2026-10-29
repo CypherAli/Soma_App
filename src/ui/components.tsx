@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import { Text, useI18n } from "./i18n";
+import { DisplayControls } from "./DisplayControls";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -8,7 +10,6 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
   TextInput,
   View,
   type ColorValue,
@@ -22,7 +23,7 @@ import { useApp } from "../core/AppProvider";
 import { useTheme } from "./theme";
 import type { AnatomyModel } from "../core/types";
 import { SYSTEM_NAMES } from "../core/types";
-import { MODEL_ART } from "./art";
+import { ART_SCALE, modelArt } from "./art";
 
 export function Icon({
   name,
@@ -48,14 +49,17 @@ export function Body({
   children,
   muted = false,
   style,
+  localize = true,
 }: {
   children: React.ReactNode;
   muted?: boolean;
+  localize?: boolean;
   style?: React.ComponentProps<typeof Text>["style"];
 }) {
   const t = useTheme();
   return (
     <Text
+      localize={localize}
       style={[
         { fontSize: 15, lineHeight: 23, color: muted ? t.muted : t.ink },
         style,
@@ -71,7 +75,7 @@ export function Title({ children }: { children: React.ReactNode }) {
     <Text
       accessibilityRole="header"
       style={{
-        fontSize: 28,
+        fontSize: 29,
         lineHeight: 35,
         fontWeight: "600",
         letterSpacing: -0.7,
@@ -159,7 +163,7 @@ export function Button({
           minHeight: 50,
           paddingHorizontal: 16,
           paddingVertical: 13,
-          borderRadius: 8,
+          borderRadius: 10,
           backgroundColor: secondary ? t.paper : t.accent,
           borderWidth: secondary ? 1 : 0,
           borderColor: t.rule,
@@ -178,7 +182,7 @@ export function Button({
         <>
           <Text
             style={{
-              fontSize: 14,
+              fontSize: 15,
               fontWeight: "600",
               color: secondary ? t.ink : t.onAccent,
               textAlign: "center",
@@ -224,14 +228,55 @@ export function TextLink({
     </Pressable>
   );
 }
-export function Brand() {
+export function UserAvatar({
+  name,
+  uri,
+  size = 40,
+}: {
+  name?: string;
+  uri?: string | null;
+  size?: number;
+}) {
   const t = useTheme();
-  const { user } = useApp();
+  const initials = name
+    ?.trim()
+    .split(/\s+/)
+    .slice(-2)
+    .map((value) => value[0])
+    .join("")
+    .toUpperCase();
   return (
     <View
       style={{
-        height: 70,
-        paddingHorizontal: 24,
+        width: size,
+        height: size,
+        borderRadius: Math.round(size * 0.25),
+        backgroundColor: t.ground,
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+      }}
+    >
+      {uri ? (
+        <Image source={{ uri }} style={{ width: size, height: size }} />
+      ) : initials ? (
+        <Text style={{ fontSize: size * 0.3, color: t.ink, fontWeight: "600" }}>
+          {initials}
+        </Text>
+      ) : (
+        <Icon name="person-outline" size={size * 0.48} color={t.muted} />
+      )}
+    </View>
+  );
+}
+export function Brand() {
+  const t = useTheme(),
+    { user } = useApp();
+  return (
+    <View
+      style={{
+        height: 60,
+        paddingHorizontal: 20,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
@@ -247,58 +292,44 @@ export function Brand() {
       >
         <Text
           style={{
-            fontSize: 30,
-            fontWeight: "700",
-            letterSpacing: -1.6,
+            fontSize: 28,
+            fontWeight: "600",
+            letterSpacing: -1.5,
             color: t.ink,
           }}
         >
           soma<Text style={{ color: t.accent }}>.</Text>
         </Text>
       </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={user ? "Mở tài khoản" : "Đăng nhập"}
-        onPress={() => router.push(user ? "/(tabs)/profile" : "/auth")}
-        style={{
-          height: 44,
-          width: 44,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <View
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <DisplayControls />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Trợ lý Soma"
+          onPress={() => router.push("/assistant")}
           style={{
-            height: 36,
-            width: 36,
-            borderWidth: 1,
-            borderColor: t.rule,
-            borderRadius: 18,
-            backgroundColor: t.ground,
+            width: 44,
+            height: 44,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          {user?.avatar ? (
-            <Image
-              source={{ uri: user.avatar }}
-              style={{ width: 34, height: 34, borderRadius: 17 }}
-            />
-          ) : (
-            <Text style={{ fontSize: 11, fontWeight: "500", color: t.ink }}>
-              {user
-                ? user.name
-                    .trim()
-                    .split(/\s+/)
-                    .slice(-2)
-                    .map((v) => v[0])
-                    .join("")
-                    .toUpperCase()
-                : "SV"}
-            </Text>
-          )}
-        </View>
-      </Pressable>
+          <Icon name="chatbubble-ellipses-outline" size={21} />
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={user ? "Mở tài khoản" : "Đăng nhập"}
+          onPress={() => router.push(user ? "/(tabs)/profile" : "/auth")}
+          style={{
+            minWidth: 44,
+            minHeight: 44,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <UserAvatar name={user?.name} uri={user?.avatar} size={34} />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -318,13 +349,33 @@ export function Notice() {
         gap: 8,
       }}
     >
+      <Icon
+        name={offline ? "cloud-offline-outline" : "information-circle-outline"}
+        size={18}
+        color={t.accent}
+      />
       <Text
         accessibilityRole="alert"
         style={{ fontSize: 12, lineHeight: 18, color: t.ink, flex: 1 }}
       >
         {notice ??
-          "Đang dùng nội dung đã lưu. Kết nối mạng để cập nhật mô hình và tiến độ."}
+          "Atlas có sẵn trên thiết bị. Kết nối máy chủ để đăng nhập và đồng bộ."}
       </Text>
+      {offline && (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push("/settings")}
+          style={{
+            minHeight: 44,
+            justifyContent: "center",
+            paddingHorizontal: 8,
+          }}
+        >
+          <Text style={{ fontSize: 12, fontWeight: "600", color: t.accent }}>
+            Kết nối
+          </Text>
+        </Pressable>
+      )}
       {notice && (
         <Pressable
           accessibilityRole="button"
@@ -348,12 +399,17 @@ export function Page({
   back,
   refresh = false,
   brand = true,
+  footer,
+  followContent = false,
 }: {
   children: React.ReactNode;
   back?: string;
   refresh?: boolean;
   brand?: boolean;
+  footer?: React.ReactNode;
+  followContent?: boolean;
 }) {
+  const scroll = useRef<ScrollView>(null);
   const t = useTheme();
   const app = useApp();
   const [refreshing, setRefreshing] = useState(false);
@@ -371,6 +427,12 @@ export function Page({
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
+          ref={scroll}
+          onContentSizeChange={
+            followContent
+              ? () => scroll.current?.scrollToEnd({ animated: true })
+              : undefined
+          }
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{
@@ -414,6 +476,7 @@ export function Page({
           )}
           {children}
         </ScrollView>
+        {footer}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -459,6 +522,7 @@ export function ErrorText({ message }: { message: string | null | undefined }) {
 }
 export function Field({ label, ...props }: TextInputProps & { label: string }) {
   const t = useTheme();
+  const { tr } = useI18n();
   return (
     <View style={{ marginVertical: 10, gap: 8 }}>
       <Text style={{ fontSize: 12, fontWeight: "600", color: t.ink }}>
@@ -467,17 +531,19 @@ export function Field({ label, ...props }: TextInputProps & { label: string }) {
       <TextInput
         placeholderTextColor={t.muted}
         {...props}
+        accessibilityLabel={tr(props.accessibilityLabel || label)}
+        placeholder={props.placeholder ? tr(props.placeholder) : undefined}
         style={[
           {
             minHeight: 49,
             borderWidth: 1,
             borderColor: t.rule,
-            borderRadius: 8,
+            borderRadius: 12,
             paddingHorizontal: 13,
             paddingVertical: 12,
             fontSize: 16,
             color: t.ink,
-            backgroundColor: t.paper,
+            backgroundColor: t.ground,
           },
           props.style,
         ]}
@@ -541,6 +607,9 @@ export function ModelRow({
   onPress: () => void;
 }) {
   const t = useTheme();
+  const { preferences } = useApp();
+  const { language } = useI18n();
+  const art = modelArt(model, preferences.apiUrl);
   return (
     <Pressable
       accessibilityRole="button"
@@ -559,15 +628,28 @@ export function ModelRow({
         style={{
           width: 80,
           height: 84,
+          overflow: "hidden",
           borderRadius: 7,
           backgroundColor: t.ground,
         }}
       >
-        <Image
-          source={MODEL_ART[model.id]}
-          resizeMode="contain"
-          style={{ width: "100%", height: "100%" }}
-        />
+        {art ? (
+          <Image
+            source={art}
+            resizeMode="contain"
+            style={{
+              width: "100%",
+              height: "100%",
+              transform: [{ scale: ART_SCALE[model.id] ?? 1 }],
+            }}
+          />
+        ) : (
+          <View
+            style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+          >
+            <Icon name="body-outline" size={35} color={t.muted} />
+          </View>
+        )}
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text
@@ -578,12 +660,12 @@ export function ModelRow({
             color: t.ink,
           }}
         >
-          {model.title}
+          {language === "en" ? model.english || model.title : model.title}
         </Text>
         <Text
           style={{ fontSize: 12, lineHeight: 18, color: t.muted, marginTop: 3 }}
         >
-          {model.english}
+          {language === "en" ? model.title : model.english}
         </Text>
         <Text
           style={{

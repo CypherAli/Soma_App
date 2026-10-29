@@ -26,6 +26,11 @@ export const TouchViewer = memo(
       [uri],
     );
     useEffect(() => {
+      let finished = false;
+      const timeout = setTimeout(() => {
+        if (!finished)
+          onError("Mô hình tải quá lâu. Kiểm tra máy chủ rồi tải lại.");
+      }, 30000);
       const receive = (event: MessageEvent) => {
         if (
           event.origin !== new URL(uri).origin ||
@@ -33,11 +38,20 @@ export const TouchViewer = memo(
         )
           return;
         const parsed = parseViewerEvent(event.data);
-        if (parsed) onEvent(parsed);
+        if (parsed) {
+          if (["ready", "error", "unavailable"].includes(parsed.type)) {
+            finished = true;
+            clearTimeout(timeout);
+          }
+          onEvent(parsed);
+        }
       };
       window.addEventListener("message", receive);
-      return () => window.removeEventListener("message", receive);
-    }, [uri, onEvent]);
+      return () => {
+        clearTimeout(timeout);
+        window.removeEventListener("message", receive);
+      };
+    }, [uri, onEvent, onError]);
     return (
       <iframe
         ref={frame}

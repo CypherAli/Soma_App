@@ -1,5 +1,6 @@
+import { Text } from "../ui/i18n";
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useApp } from "../core/AppProvider";

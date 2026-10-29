@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+builds/
+dist/
+qa/
+android/
+ios/
+assets/
+package-lock.json
+src/core/offlineRegistry.ts
+src/ui/offlineArt.ts
+src/ui/artScale.ts

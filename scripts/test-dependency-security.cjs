@@ -1,51 +1,195 @@
-const fs = require('node:fs');
-const path = require('node:path');
-const assert = require('node:assert/strict');
-const root = path.resolve(__dirname, '..');
-const packages = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8')).packages;
+const fs = require("node:fs");
+const path = require("node:path");
+const assert = require("node:assert/strict");
+const root = path.resolve(__dirname, "..");
+const packages = JSON.parse(
+  fs.readFileSync(path.join(root, "package-lock.json"), "utf8"),
+).packages;
 let checks = 0;
 for (const key of Object.keys(packages)) {
   const folder = path.join(root, key);
-  if (!key || !fs.existsSync(path.join(folder, 'package.json'))) continue;
-  const { name, version } = JSON.parse(fs.readFileSync(path.join(folder, 'package.json'), 'utf8'));
-  if (name === 'braces' && version === '3.0.3') {
+  if (!key || !fs.existsSync(path.join(folder, "package.json"))) continue;
+  const { name, version } = JSON.parse(
+    fs.readFileSync(path.join(folder, "package.json"), "utf8"),
+  );
+  if (name === "braces" && version === "3.0.3") {
     const braces = require(folder);
-    assert.deepEqual(braces.expand('file-{a,b}.js'), ['file-a.js', 'file-b.js']);
-    const nested = '{'.repeat(200) + 'x,y' + '}'.repeat(200);
+    assert.deepEqual(braces.expand("file-{a,b}.js"), [
+      "file-a.js",
+      "file-b.js",
+    ]);
+    const nested = "{".repeat(200) + "x,y" + "}".repeat(200);
     assert.throws(() => braces(nested), /nesting exceeds/);
-    let ast = { type: 'text', value: 'x' };
-    for (let i = 0; i < 200; i++) ast = { type: 'brace', nodes: [ast] };
-    for (const method of ['compile', 'expand', 'stringify']) assert.throws(() => braces[method](ast), /AST exceeds/);
+    let ast = { type: "text", value: "x" };
+    for (let i = 0; i < 200; i++) ast = { type: "brace", nodes: [ast] };
+    for (const method of ["compile", "expand", "stringify"])
+      assert.throws(() => braces[method](ast), /AST exceeds/);
     checks++;
   }
-  if (name === 'node-forge' && version === '1.4.0') {
-    const forge = require(folder), asn1 = forge.asn1;
+  if (name === "node-forge") {
+    const forge = require(folder),
+      asn1 = forge.asn1;
     const keys = forge.pki.rsa.generateKeyPair({ bits: 1024, e: 65537 });
-    const md = forge.md.sha256.create().update('Soma security regression');
+    const md = forge.md.sha256.create().update("Soma security regression");
     const digest = md.digest().getBytes();
     assert.equal(keys.publicKey.verify(digest, keys.privateKey.sign(md)), true);
-    const create = (type, constructed, value) => asn1.create(asn1.Class.UNIVERSAL, type, constructed, value);
-    const algorithm = create(asn1.Type.SEQUENCE, true, [create(asn1.Type.OID, false, asn1.oidToDer(forge.oids.sha256).getBytes()), create(asn1.Type.NULL, false, ''), create(asn1.Type.OCTETSTRING, false, 'unexpected')]);
-    const malformed = asn1.toDer(create(asn1.Type.SEQUENCE, true, [algorithm, create(asn1.Type.OCTETSTRING, false, digest)])).getBytes();
-    const signature = keys.privateKey.sign(malformed, 'NONE');
+    const create = (type, constructed, value) =>
+      asn1.create(asn1.Class.UNIVERSAL, type, constructed, value);
+    const algorithm = create(asn1.Type.SEQUENCE, true, [
+      create(asn1.Type.OID, false, asn1.oidToDer(forge.oids.sha256).getBytes()),
+      create(asn1.Type.NULL, false, ""),
+      create(asn1.Type.OCTETSTRING, false, "unexpected"),
+    ]);
+    const malformed = asn1
+      .toDer(
+        create(asn1.Type.SEQUENCE, true, [
+          algorithm,
+          create(asn1.Type.OCTETSTRING, false, digest),
+        ]),
+      )
+      .getBytes();
+    const signature = keys.privateKey.sign(malformed, "NONE");
     assert.throws(() => keys.publicKey.verify(digest, signature), /DigestInfo/);
     checks++;
   }
-  if (name === 'decode-uri-component' && version === '0.2.2') {
-    const decode = require(folder);
-    assert.equal(decode('gi%E1%BA%A3i+ph%E1%BA%ABu'), 'giải phẫu');
-    assert.equal(decode('%C2'), '\uFFFD');
-    const malformed = '%FF'.repeat(1000);
+  if (name === "decode-uri-component") {
+    const module = require(folder),
+      decode = typeof module === "function" ? module : module.default;
+    assert.equal(decode("gi%E1%BA%A3i%20ph%E1%BA%ABu"), "giải phẫu");
+    assert.equal(decode("%C2"), "\uFFFD");
+    const malformed = "%FF".repeat(1000);
     assert.equal(decode(malformed), malformed);
-    assert.equal(decode('%E0%A4%A'), '%E0%A4%A');
+    assert.equal(decode("%E0%A4%A"), "%E0%A4%A");
     checks++;
   }
-  if (name === 'sprintf-js' && version === '1.0.3') {
+  if (name === "deepmerge") {
+    const merge = require(folder),
+      symbol = Symbol("normal data");
+    const source = JSON.parse(
+      '{"__proto__":{"poisoned":true},"constructor":{"prototype":{"poisoned":true}},"prototype":{"poisoned":true},"safe":{"b":2}}',
+    );
+    for (const target of [
+      {},
+      Object.create(null),
+      JSON.parse('{"__proto__":{"poisoned":true},"safe":{"a":1}}'),
+    ]) {
+      const result = merge(target, source);
+      assert.equal(Object.getPrototypeOf(result), Object.prototype);
+      assert.equal(result.poisoned, undefined);
+      assert.equal(Object.prototype.poisoned, undefined);
+      for (const key of ["__proto__", "constructor", "prototype"])
+        assert.equal(Object.hasOwn(result, key), false);
+      assert.equal(result.safe.b, 2);
+    }
+    assert.deepEqual(merge({ items: [1], [symbol]: "kept" }, { items: [2] }), {
+      items: [1, 2],
+      [symbol]: "kept",
+    });
+    checks++;
+  }
+  if (name === "query-string") {
+    const query = require(folder);
+    assert.equal(
+      query.parse("name=gi%E1%BA%A3i+ph%E1%BA%ABu").name,
+      "giải phẫu",
+    );
+    assert.deepEqual(
+      { ...query.parse("tag=a&tag=b&empty=") },
+      { empty: "", tag: ["a", "b"] },
+    );
+    assert.match(query.stringify({ name: "giải phẫu" }), /name=/);
+    checks++;
+  }
+  if (name === "zod") {
+    const { z } = require(folder);
+    const result = z
+      .array(z.string())
+      .max(2)
+      .safeParse(Array(50000).fill({ invalid: true }));
+    assert.equal(result.success, false);
+    assert.equal(
+      result.error.issues.length,
+      1,
+      "Oversized collections fail before collecting element errors",
+    );
+    assert.equal(
+      z
+        .object({ name: z.string(), count: z.number() })
+        .safeParse({ name: "Soma", count: 2 }).success,
+      true,
+    );
+    checks++;
+  }
+  if (name === "@expo/cli") {
+    const { PluginSchema, DevToolsPluginOutputSchema } = require(
+      path.join(folder, "build/src/start/server/DevToolsPlugin.schema.js"),
+    );
+    const { createMCPDevToolsExtensionSchema } = require(
+      path.join(
+        folder,
+        "build/src/start/server/createMCPDevToolsExtensionSchema.js",
+      ),
+    );
+    const plugin = {
+      packageName: "soma-qa",
+      packageRoot: root,
+      cliExtensions: {
+        description: "QA",
+        entryPoint: "index.js",
+        commands: [
+          {
+            name: "inspect",
+            title: "Inspect",
+            environments: ["cli", "mcp"],
+            parameters: [
+              { name: "name", type: "text" },
+              { name: "count", type: "number" },
+              { name: "confirm", type: "confirm" },
+            ],
+          },
+        ],
+      },
+    };
+    assert.equal(PluginSchema.safeParse(plugin).success, true);
+    assert.equal(
+      PluginSchema.safeParse({ ...plugin, packageName: "" }).success,
+      false,
+    );
+    assert.equal(
+      DevToolsPluginOutputSchema.safeParse([
+        { type: "text", text: "Soma", level: "info" },
+      ]).success,
+      true,
+    );
+    const schema = createMCPDevToolsExtensionSchema(plugin);
+    assert.equal(
+      schema.safeParse({
+        command: "inspect",
+        name: "Atlas",
+        count: 2,
+        confirm: true,
+      }).success,
+      true,
+    );
+    assert.equal(schema.safeParse({ command: "unknown" }).success, false);
+    assert.equal(
+      schema.safeParse({ command: "inspect", count: "wrong type" }).success,
+      false,
+    );
+    assert.equal(
+      schema.safeParse({ command: "inspect", extra: "unexpected" }).success,
+      false,
+    );
+    checks++;
+  }
+  if (name === "sprintf-js" && version === "1.0.3") {
     const { sprintf } = require(folder);
-    assert.equal(sprintf('%.2f', 1.234), '1.23');
-    assert.throws(() => sprintf('%1000000000s', 'x'), /exceeds 10000/);
-    assert.throws(() => sprintf('%.1000000000f', 1), /exceeds 10000/);
+    assert.equal(sprintf("%.2f", 1.234), "1.23");
+    assert.throws(() => sprintf("%1000000000s", "x"), /exceeds 10000/);
+    assert.throws(() => sprintf("%.1000000000f", 1), /exceeds 10000/);
     checks++;
   }
 }
-console.log(`PASS: ${checks} installed dependency security mitigations and ordinary input cases.`);
+console.log(
+  `PASS: ${checks} installed dependency security mitigations and ordinary input cases.`,
+);

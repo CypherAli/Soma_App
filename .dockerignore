@@ -1,0 +1,13 @@
+**
+!package.json
+!scripts/
+scripts/**
+!scripts/share-preview.mjs
+!scripts/lib/
+scripts/lib/**
+!scripts/lib/gateway-policy.mjs
+!scripts/lib/gateway-config.mjs
+!deploy/
+deploy/**
+!deploy/mobile-allowlist.json
+!deploy/gateway.Dockerfile

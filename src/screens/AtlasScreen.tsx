@@ -1,5 +1,14 @@
+import { Text } from "../ui/i18n";
 import { useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  FlatList,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useApp } from "../core/AppProvider";
 import { fold } from "../core/practice";
@@ -10,7 +19,8 @@ import {
   Icon,
   Kicker,
   ModelRow,
-  Page,
+  Brand,
+  Notice,
   Title,
 } from "../ui/components";
 import { useTheme } from "../ui/theme";
@@ -20,6 +30,7 @@ export function AtlasScreen() {
     t = useTheme();
   const [query, setQuery] = useState(""),
     [filter, setFilter] = useState("all");
+  const [refreshing, setRefreshing] = useState(false);
   const models = useMemo(
     () =>
       catalogue.models.filter(
@@ -37,10 +48,14 @@ export function AtlasScreen() {
     [catalogue.models, query, filter],
   );
   const systems = [...new Set(catalogue.models.map((m) => m.system))];
-  return (
-    <Page refresh>
+  const header = (
+    <>
       <Kicker>Thư viện mô hình · Giải phẫu người</Kicker>
       <Title>Atlas</Title>
+      <Body muted style={{ fontSize: 13 }}>
+        {catalogue.models.length} mô hình · Tìm theo cơ quan, cấu trúc hoặc tên
+        Latin
+      </Body>
       <View
         style={{
           flexDirection: "row",
@@ -88,14 +103,10 @@ export function AtlasScreen() {
           </Pressable>
         )}
       </View>
-      <View
-        style={{
-          flexDirection: "row",
-          flexWrap: "wrap",
-          gap: 18,
-          borderBottomWidth: StyleSheet.hairlineWidth,
-          borderColor: t.rule,
-        }}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 8, paddingVertical: 12 }}
       >
         {["all", ...systems].map((system) => (
           <Pressable
@@ -106,90 +117,128 @@ export function AtlasScreen() {
             style={{
               minHeight: 44,
               justifyContent: "center",
-              borderBottomWidth: filter === system ? 2 : 0,
-              borderColor: t.accent,
+              paddingHorizontal: 15,
+              borderRadius: 14,
+              backgroundColor: filter === system ? t.accent : t.ground,
             }}
           >
             <Text
               style={{
                 fontSize: 12,
                 fontWeight: filter === system ? "600" : "400",
-                color: filter === system ? t.ink : t.muted,
+                color: filter === system ? t.onAccent : t.muted,
               }}
             >
               {system === "all" ? "Tất cả" : SYSTEM_NAMES[system]}
             </Text>
           </Pressable>
         ))}
-      </View>
-      {models.map((model) => (
-        <View key={model.id}>
-          <ModelRow
-            model={model}
-            onPress={() =>
-              router.push({ pathname: "/atlas/[id]", params: { id: model.id } })
+      </ScrollView>
+    </>
+  );
+  return (
+    <SafeAreaView
+      edges={["top", "left", "right"]}
+      style={{ flex: 1, backgroundColor: t.paper }}
+    >
+      <Brand />
+      <Notice />
+      <FlatList
+        data={models}
+        keyExtractor={(model) => model.id}
+        ListHeaderComponent={header}
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={5}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{
+          paddingHorizontal: 24,
+          paddingTop: 24,
+          paddingBottom: 35,
+          flexGrow: 1,
+        }}
+        refreshing={refreshing}
+        onRefresh={() => {
+          setRefreshing(true);
+          void refresh().finally(() => setRefreshing(false));
+        }}
+        renderItem={({ item: model }) => (
+          <View key={model.id}>
+            <ModelRow
+              model={model}
+              onPress={() =>
+                router.push({
+                  pathname: "/atlas/[id]",
+                  params: { id: model.id },
+                })
+              }
+            />
+            {query.trim().length > 0 &&
+              model.structures
+                .filter((s) =>
+                  fold(`${s.label} ${s.english} ${s.latin}`).includes(
+                    fold(query),
+                  ),
+                )
+                .slice(0, 4)
+                .map((structure) => (
+                  <Pressable
+                    accessibilityRole="button"
+                    key={structure.id}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/atlas/[id]",
+                        params: { id: model.id, mesh: structure.meshName },
+                      })
+                    }
+                    style={{
+                      paddingVertical: 12,
+                      paddingLeft: 17,
+                      borderBottomWidth: StyleSheet.hairlineWidth,
+                      borderColor: t.rule,
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, color: t.accent }}>
+                      {structure.label}
+                    </Text>
+                    <Text
+                      style={{ fontSize: 11, color: t.muted, marginTop: 3 }}
+                    >
+                      {structure.latin || structure.english}
+                    </Text>
+                  </Pressable>
+                ))}
+          </View>
+        )}
+        ListEmptyComponent={
+          <Empty
+            title={
+              catalogue.models.length
+                ? "Không có kết quả phù hợp"
+                : "Chưa tải được thư viện"
             }
-          />
-          {query.trim() &&
-            model.structures
-              .filter((s) =>
-                fold(`${s.label} ${s.english} ${s.latin}`).includes(
-                  fold(query),
-                ),
-              )
-              .slice(0, 4)
-              .map((structure) => (
-                <Pressable
-                  accessibilityRole="button"
-                  key={structure.id}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/atlas/[id]",
-                      params: { id: model.id, mesh: structure.meshName },
-                    })
-                  }
-                  style={{
-                    paddingVertical: 12,
-                    paddingLeft: 17,
-                    borderBottomWidth: StyleSheet.hairlineWidth,
-                    borderColor: t.rule,
-                  }}
-                >
-                  <Text style={{ fontSize: 13, color: t.accent }}>
-                    {structure.label}
-                  </Text>
-                  <Text style={{ fontSize: 11, color: t.muted, marginTop: 3 }}>
-                    {structure.latin || structure.english}
-                  </Text>
-                </Pressable>
-              ))}
-        </View>
-      ))}
-      {!models.length && (
-        <Empty
-          title={
-            catalogue.models.length
-              ? "Không có kết quả phù hợp"
-              : "Chưa tải được thư viện"
-          }
-          action={catalogue.models.length ? "Xóa bộ lọc" : "Thử lại"}
-          onPress={() => {
-            if (catalogue.models.length) {
-              setQuery("");
-              setFilter("all");
-            } else void refresh();
-          }}
-        >
-          {catalogue.models.length
-            ? "Thử tên Việt, Anh hoặc Latin khác."
-            : "Kiểm tra kết nối máy chủ trong Cài đặt."}
-        </Empty>
-      )}
-      {!!models.length && (
-        <Body muted style={{ fontSize: 11, marginTop: 16 }}>
-          Mô hình được tải khi mở · Z-Anatomy / Soma
-        </Body>
-      )}
-    </Page>
+            action={catalogue.models.length ? "Xóa bộ lọc" : "Thử lại"}
+            onPress={() => {
+              if (catalogue.models.length) {
+                setQuery("");
+                setFilter("all");
+              } else void refresh();
+            }}
+          >
+            {catalogue.models.length
+              ? "Thử tên Việt, Anh hoặc Latin khác."
+              : "Kiểm tra kết nối máy chủ trong Cài đặt."}
+          </Empty>
+        }
+        ListFooterComponent={
+          models.length > 0 ? (
+            <Body muted style={{ fontSize: 11, marginTop: 16 }}>
+              {models.length} mô hình · Tải dữ liệu 3D khi mở · BodyParts3D /
+              Z-Anatomy / Soma
+            </Body>
+          ) : null
+        }
+      />
+    </SafeAreaView>
   );
 }

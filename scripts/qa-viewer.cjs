@@ -7,9 +7,7 @@ const assert = require("node:assert/strict");
   const output = path.resolve(__dirname, "../qa/viewer");
   const api = process.env.MOBILE_QA_API_URL || "http://localhost:4000/api";
   fs.mkdirSync(output, { recursive: true });
-  const catalog = await fetch(
-    api + "/mobile/bootstrap",
-  ).then((r) => r.json());
+  const catalog = await fetch(api + "/mobile/bootstrap").then((r) => r.json());
   const report = [];
   try {
     for (const model of catalog.models) {
@@ -74,7 +72,7 @@ const assert = require("node:assert/strict");
       JSON.stringify(report, null, 2),
     );
     console.log(
-      "PASS: all five GLB models rendered, decoded Draco, and selected real structures.",
+      `PASS: all ${catalog.models.length} shared models rendered and selected real structures.`,
     );
   } finally {
     await browser.close();

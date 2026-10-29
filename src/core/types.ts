@@ -5,6 +5,9 @@ export interface Structure {
   english: string;
   latin: string;
   note: string;
+  meshNames?: string[];
+  sources?: { title: string; page?: number; url?: string }[];
+  landmarks?: { label: string; latin: string; note: string; source: string }[];
 }
 export interface AnatomyModel {
   id: string;
@@ -16,6 +19,8 @@ export interface AnatomyModel {
   viewerPath: string;
   structures: Structure[];
   attribution: string;
+  kind?: "atlas" | "glb";
+  thumbnailPath?: string;
 }
 export interface Question {
   itemKey: string;
@@ -42,6 +47,12 @@ export interface User {
   email: string;
   avatar?: string | null;
   plan?: string;
+  role?: string;
+  learningRole?: "learner" | "teacher";
+  premiumUntil?: string | null;
+  createdAt?: string;
+  hasPassword?: boolean;
+  connections?: Record<"google" | "github" | "facebook", boolean>;
 }
 export interface Credential {
   token: string;
@@ -125,6 +136,8 @@ export type Appearance = "system" | "light" | "dark";
 export interface Preferences {
   apiUrl: string;
   appearance: Appearance;
+  language?: "vi" | "en";
+  bundledApiUrl?: string;
 }
 export const SYSTEM_NAMES: Record<string, string> = {
   all: "Tất cả hệ cơ quan",
@@ -135,4 +148,38 @@ export const SYSTEM_NAMES: Record<string, string> = {
   visceral: "Nội tạng",
   joints: "Khớp",
   lymphoid: "Hệ bạch huyết",
+  digestive: "Hệ tiêu hóa",
+  respiratory: "Hệ hô hấp",
+  urinary: "Hệ tiết niệu",
+  endocrine: "Hệ nội tiết",
+  visual: "Hệ thị giác",
+  auditory: "Hệ thính giác",
+  reproductive: "Hệ sinh sản",
+  fascia: "Hệ mạc",
+  connective: "Mô liên kết",
 };
+
+export interface ProfilePatch {
+  name?: string;
+  avatar?: string | null;
+  learningRole?: "learner" | "teacher";
+}
+export interface Membership {
+  plan: string;
+  limit: number;
+  used: number;
+  remaining: number;
+  resetsAt: string;
+  premiumUntil: string | null;
+  paymentEnabled: boolean;
+  sandbox: boolean;
+  price: number;
+}
+export interface DeviceSession {
+  id: string;
+  userAgent: string | null;
+  current: boolean;
+  createdAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+}
